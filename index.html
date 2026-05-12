@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+  <title>Astro Weather</title>
+
+  <link rel="stylesheet" href="./style.css" />
+  <link rel="manifest" href="./manifest.json" />
+  <meta name="theme-color" content="#050510" />
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="title-block">
+        <h1>Astro Weather</h1>
+        <span id="location-label" class="sub-label">Loading location…</span>
+      </div>
+      <div id="bortle-badge" class="badge">Bortle: --</div>
+    </header>
+
+    <main>
+      <!-- Surface layer: main night score -->
+      <section class="hero-section">
+        <div class="score-circle" id="score-wrapper">
+          <span id="main-score">--</span>
+          <span class="label">NIGHT SCORE</span>
+          <span id="trend-label" class="trend-label">--</span>
+        </div>
+
+        <div class="quick-stats">
+          <div class="stat">
+            <span class="stat-label">Cloud</span>
+            <span id="cloud-val" class="stat-value">--%</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Transparency</span>
+            <span id="transparency-val" class="stat-value">--/10</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Dew</span>
+            <span id="dew-val" class="stat-value">--/10</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Seeing</span>
+            <span id="seeing-val" class="stat-value">--/10</span>
+          </div>
+        </div>
+
+        <div class="moon-row">
+          <div class="moon-item">
+            <span class="stat-label">Moon</span>
+            <span id="moon-phase-val" class="stat-value">--%</span>
+          </div>
+          <div class="moon-item">
+            <span class="stat-label">Altitude</span>
+            <span id="moon-alt-val" class="stat-value">--°</span>
+          </div>
+          <div class="moon-item">
+            <span class="stat-label">Penalty</span>
+            <span id="moon-penalty-val" class="stat-value">--/10</span>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <h2>Tonight</h2>
+          <p id="tonight-summary">Loading forecast…</p>
+          <p id="best-window" class="summary-sub">Best window: --</p>
+          <p id="confidence-label" class="summary-sub">Confidence: --</p>
+        </div>
+      </section>
+
+      <!-- Deep layer: hourly details -->
+      <section class="details-section">
+        <div class="section-header">
+          <h2>Hourly Detail</h2>
+          <button id="toggle-hourly-btn" class="ghost-btn">
+            Show hourly
+          </button>
+        </div>
+        <div id="hourly-panel" class="hourly-panel collapsed">
+          <div id="hourly-list" class="hourly-list">
+            <!-- Filled by app.js -->
+          </div>
+        </div>
+      </section>
+
+      <!-- 7-night outlook -->
+      <section class="scanner-section">
+        <div class="section-header">
+          <h2>7-Night Outlook</h2>
+        </div>
+        <div id="night-cards" class="scanner-grid">
+          <!-- Filled by app.js -->
+        </div>
+      </section>
+
+      <section class="controls-section">
+        <button id="refresh-btn" class="primary-btn">
+          Update Forecast
+        </button>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register("/astro-weather/service-worker.js", {
+          scope: "/astro-weather/",
+        })
+        .then(() => console.log("Astro-Weather SW Active"))
+        .catch((err) => console.error("SW Error", err));
+    }
+  </script>
+</body>
+</html>
