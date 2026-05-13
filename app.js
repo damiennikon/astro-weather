@@ -152,6 +152,14 @@ async function refreshForecast() {
     // ⭐ NEW — run the satellite/model engine first
     const engineOutput = await runEngine();
     console.log("Engine output:", engineOutput);
+// ⭐ NEW — update UI with model + satellite fusion data
+if (engineOutput) {
+  els.cloudVal.textContent = `${Math.round(engineOutput.cloud)}%`;
+  els.transparencyVal.textContent = `${engineOutput.transparency.toFixed(1)}/10`;
+  els.dewVal.textContent = `${engineOutput.dew.toFixed(1)}°C`;
+  els.seeingVal.textContent = `${engineOutput.seeing.toFixed(1)}/10`;
+  els.confidenceLabel.textContent = `Confidence: ${Math.round(engineOutput.confidence * 100)}%`;
+}
 
     // Your existing multi-night forecast logic
     const multi = await buildMultiNightForecast({
