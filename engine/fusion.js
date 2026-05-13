@@ -4,53 +4,49 @@ export function fuseData(ing) {
   const gfs = ing.gfs;
   const icon = ing.icon;
 
-  // Cloud fusion
-  const cloud = weightedAverage([
+  const cloud = weighted([
     [sat?.cloudPercent, 0.6],
     [gfs?.cloud, 0.2],
     [icon?.cloud, 0.2]
   ]);
 
-  // Temperature fusion
-  const temp = weightedAverage([
+  const temp = weighted([
     [gfs?.temp, 0.5],
     [icon?.temp, 0.5]
   ]);
 
-  // Dew point fusion
-  const dew = weightedAverage([
+  const dew = weighted([
     [gfs?.dew, 0.5],
     [icon?.dew, 0.5]
   ]);
 
-  // Transparency (derived)
-  const transparency = 10 - cloud / 10;
+  const humidity = weighted([
+    [gfs?.humidity, 0.5],
+    [icon?.humidity, 0.5]
+  ]);
 
-  // Seeing (placeholder)
-  const seeing = 7 - (windToSeeing(gfs?.wind || 5) / 2);
+  const transparency = 10 - cloud / 10;
+  const seeing = 10 - (humidity / 10 + cloud / 20);
 
   return {
     cloud,
     temp,
     dew,
+    humidity,
     transparency,
     seeing,
-    confidence: 0.8
+    confidence: 0.9
   };
 }
 
-function weightedAverage(values) {
+function weighted(values) {
   let sum = 0;
-  let weight = 0;
+  let wsum = 0;
   for (const [v, w] of values) {
     if (v != null) {
       sum += v * w;
-      weight += w;
+      wsum += w;
     }
   }
-  return weight > 0 ? sum / weight : null;
-}
-
-function windToSeeing(w) {
-  return Math.min(10, Math.max(1, w));
+  return wsum > 0 ? sum / wsum : null;
 }
