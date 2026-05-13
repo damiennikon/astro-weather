@@ -1,33 +1,20 @@
 // ingestion/icon.js
-// Client-side ICON-Global ingestion
-
-const ICON_BASE =
-  "https://opendata.dwd.de/weather/nwp/icon/grib/00/";
+// ICON-Global JSON ingestion via Open-Meteo
 
 export async function getICON(lat, lon) {
-  // ICON grid is ~13 km, so nearest point is fine
-  const url = `${ICON_BASE}icon_global_00_000.grib2`;
+  const url = `https://api.open-meteo.com/v1/icon?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,dewpoint_2m,relative_humidity_2m,cloudcover,windspeed_10m&forecast_days=1`;
 
   const res = await fetch(url);
-  if (!res.ok) throw new Error("ICON fetch failed");
+  if (!res.ok) throw new Error("ICON JSON fetch failed");
 
-  const buffer = await res.arrayBuffer();
-  const data = await parseGRIB(buffer);
+  const data = await res.json();
 
   return {
-    temp: data.t,
-    dew: data.td,
-    humidity: data.rh,
-    cloud: data.clct,
-    confidence: 0.75
-  };
-}
-
-async function parseGRIB(buffer) {
-  return {
-    t: 19,
-    td: 14,
-    rh: 68,
-    clct: 35
+    temp: data.hourly.temperature_2m[0],
+    dew: data.hourly.dewpoint_2m[0],
+    humidity: data.hourly.relative_humidity_2m[0],
+    cloud: data.hourly.cloudcover[0],
+    wind: data.hourly.windspeed_10m[0],
+    confidence: 0.85
   };
 }
