@@ -1,34 +1,32 @@
 // engine/ingestion.js
 import { getCloudCoverForLocation } from "../ingestion/satellite.js";
+import { getGFS } from "../ingestion/gfs.js";
+import { getICON } from "../ingestion/icon.js";
 
 export async function runIngestion() {
   const results = {
     satellite: null,
-    models: null,
-    astronomy: null
-  };
-
-  try {
-    // Satellite cloud ingestion
-    const sat = await getCloudCoverForLocation();
-    results.satellite = {
-      cloudPercent: sat.cloudPercent,
-      timestamp: sat.timestamp,
-      confidence: sat.confidence
-    };
-  } catch (err) {
-    console.error("Satellite ingestion failed:", err);
-    results.satellite = { cloudPercent: null, confidence: 0 };
-  }
-
-  // Model ingestion (placeholder for now)
-  results.models = {
     gfs: null,
     icon: null
   };
 
-  // Astronomy ingestion (placeholder)
-  results.astronomy = null;
+  try {
+    results.satellite = await getCloudCoverForLocation();
+  } catch (e) {
+    console.warn("Satellite failed", e);
+  }
+
+  try {
+    results.gfs = await getGFS(-27.6830, 153.1894);
+  } catch (e) {
+    console.warn("GFS failed", e);
+  }
+
+  try {
+    results.icon = await getICON(-27.6830, 153.1894);
+  } catch (e) {
+    console.warn("ICON failed", e);
+  }
 
   return results;
 }
