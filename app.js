@@ -1,4 +1,6 @@
+// app.js
 import { buildNightForecast, buildMultiNightForecast } from "./engine/forecast.js";
+import { runEngine } from "./engine/engine.js";   // ⭐ NEW — import the engine
 
 const els = {
   mainScore: document.getElementById("main-score"),
@@ -146,6 +148,12 @@ function renderNightCards(nights) {
 async function refreshForecast() {
   try {
     setLoadingState(true);
+
+    // ⭐ NEW — run the satellite/model engine first
+    const engineOutput = await runEngine();
+    console.log("Engine output:", engineOutput);
+
+    // Your existing multi-night forecast logic
     const multi = await buildMultiNightForecast({
       lat: currentLat,
       lon: currentLon,
@@ -200,8 +208,10 @@ function initUI() {
   els.bortleBadge.textContent = `Bortle: ${currentBortle}`;
 }
 
+// ⭐ Boot sequence
 document.addEventListener("DOMContentLoaded", () => {
   initLocation();
   initUI();
-  refreshForecast();
+  refreshForecast();   // your original forecast engine
+  runEngine();         // ⭐ NEW — satellite ingestion engine
 });
