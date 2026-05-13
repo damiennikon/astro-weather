@@ -1,45 +1,53 @@
-/**
- * Placeholder GFS ingestion.
- * Replace with real GFS API/GRIB decoding later.
- */
-export async function ingestGFS({ lat, lon, date }) {
-  const hours = buildNightHours(date);
+// ingestion/gfs.js
+// Client-side GFS 0.25° ingestion
+
+const GFS_BASE =
+  "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl";
+
+export async function getGFS(lat, lon) {
+  // Round to nearest 0.25° grid
+  const latR = Math.round(lat * 4) / 4;
+  const lonR = Math.round(lon * 4) / 4;
+
+  const params = new URLSearchParams({
+    file: "gfs.t00z.pgrb2.0p25.f000",
+    lev_2_m_above_ground: "on",
+    lev_surface: "on",
+    var_TMP: "on",
+    var_DPT: "on",
+    var_RH: "on",
+    var_TCDC: "on",
+    subregion: "",
+    leftlon: lonR,
+    rightlon: lonR,
+    toplat: latR,
+    bottomlat: latR,
+    dir: "/gfs.20250101/00" // placeholder — we will auto‑detect cycle next
+  });
+
+  const url = `${GFS_BASE}?${params.toString()}`;
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("GFS fetch failed");
+
+  const blob = await res.arrayBuffer();
+  const data = await parseGRIB(blob);
 
   return {
-    hours: hours.map((time, idx) => {
-      const baseCloud = 50 + Math.sin(idx / 3) * 20;
-      const humidity = 70 + Math.cos(idx / 4) * 15;
-      const temp = 15 - idx * 0.5;
-      const dewPoint = temp - (3 + Math.sin(idx / 2));
-
-      return {
-        time,
-        cloud: clamp(baseCloud + noise(10), 0, 100),
-        humidity: clamp(humidity + noise(5), 0, 100),
-        temp,
-        dewPoint,
-        windSpeed: 3 + Math.abs(Math.sin(idx / 2) * 4),
-        windDir: 180 + idx * 5
-      };
-    })
+    temp: data.TMP,
+    dew: data.DPT,
+    humidity: data.RH,
+    cloud: data.TCDC,
+    confidence: 0.7
   };
 }
 
-function buildNightHours(date) {
-  const d = new Date(date);
-  d.setHours(17, 0, 0, 0);
-  const hours = [];
-  for (let i = 0; i <= 14; i++) {
-    const h = new Date(d.getTime() + i * 60 * 60 * 1000);
-    hours.push(h.toISOString());
-  }
-  return hours;
-}
-
-function noise(range) {
-  return (Math.random() - 0.5) * 2 * range;
-}
-
-function clamp(v, min, max) {
-  return Math.max(min, Math.min(max, v));
+// Placeholder GRIB parser — we will replace with a real one
+async function parseGRIB(buffer) {
+  return {
+    TMP: 20,
+    DPT: 15,
+    RH: 70,
+    TCDC: 40
+  };
 }
