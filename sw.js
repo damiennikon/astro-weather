@@ -1,4 +1,4 @@
-const CACHE_NAME = 'astro-weather-shell-v5';
+const CACHE_NAME = 'astro-weather-shell-v6';
 const API_CACHE_NAME = 'astro-weather-api-v1';
 
 const SHELL_ASSETS = [
@@ -18,7 +18,12 @@ self.addEventListener('install', event => {
                 return cache.addAll(SHELL_ASSETS);
             })
     );
-    self.skipWaiting();
+});
+
+self.addEventListener('message', event => {
+    if (event.data && event.data.action === 'skipWaiting') {
+        self.skipWaiting();
+    }
 });
 
 self.addEventListener('activate', event => {
