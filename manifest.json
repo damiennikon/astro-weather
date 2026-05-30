@@ -1,0 +1,22 @@
+{
+  "name": "Astro Weather",
+  "short_name": "Astro Weather",
+  "description": "High-accuracy astrophotography weather forecasts.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#0a0000",
+  "theme_color": "#0a0000",
+  "icons": [
+    {
+      "src": "icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

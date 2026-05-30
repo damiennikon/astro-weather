@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Astro Weather</title>
+    <meta name="description" content="High-accuracy astrophotography weather forecasts.">
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <!-- Placeholders for standard PWA icons -->
+    <link rel="icon" href="icon-192x192.png" type="image/png">
+    <link rel="apple-touch-icon" href="icon-192x192.png">
+    <meta name="theme-color" content="#0a0000">
+</head>
+<body>
+    <header>
+        <h1>Astro Weather</h1>
+        <p id="location-label">Loganholme, QLD Forecast</p>
+    </header>
+    
+    <main>
+        <div class="search-container">
+            <div class="search-wrapper">
+                <input type="text" id="location-search" placeholder="Search dark sky site (e.g., Wivenhoe)...">
+                <ul id="suggestions-list" class="suggestions-dropdown hidden"></ul>
+            </div>
+            <button id="search-btn">Search</button>
+            <button id="locate-btn">📍 Locate Me</button>
+        </div>
+
+        <!-- Container for parsed weather data -->
+        <div id="forecast-container">
+            <p class="loading">Loading forecast data...</p>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+    <script src="app.js" type="module"></script>
+</body>
+</html>
