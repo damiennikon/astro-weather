@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initWeatherWorker();
     initLocationUI();
     initConfidenceModal();
+    initSatelliteModal();
 });
 
 function initConfidenceModal() {
@@ -653,3 +654,24 @@ function initLocationUI() {
         );
     });
 }
+
+function initSatelliteModal() {
+    const satBtn = document.getElementById('satellite-btn');
+    if (satBtn) {
+        satBtn.addEventListener('click', () => {
+            const iframe = document.getElementById('satellite-iframe');
+            if (iframe) {
+                iframe.src = `https://embed.windy.com/embed2.html?lat=${currentLat}&lon=${currentLon}&zoom=5&overlay=satellite`;
+            }
+            document.getElementById('satellite-modal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+    }
+}
+
+window.closeSatelliteModal = function(event, force = false) {
+    if (force || (event && event.target && event.target.id === 'satellite-modal')) {
+        document.getElementById('satellite-modal').classList.remove('active');
+        document.body.style.overflow = '';
+    }
+};

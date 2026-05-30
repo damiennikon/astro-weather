@@ -196,6 +196,10 @@ main {
     overflow: hidden;
 }
 
+.satellite-modal-content {
+    height: 80vh;
+}
+
 .modal-header {
     background-color: var(--panel-header);
     padding: 1rem;
