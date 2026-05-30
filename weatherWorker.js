@@ -113,7 +113,7 @@ function processAndFuseData(validModels, lat, lon) {
                 humidities.push(data.hourly.relative_humidity_2m[idx]);
                 dewPoints.push(data.hourly.dew_point_2m[idx]);
                 winds.push(data.hourly.wind_speed_10m[idx]);
-                jetStreams.push(data.hourly.wind_speed_250hPa[idx]);
+                jetStreams.push(data.hourly.wind_speed_250hPa?.[idx] ?? null);
                 
                 if (model === 'icon_global') rawModels.icon = { low: cL ?? 'N/A', mid: cM ?? 'N/A', high: cH ?? 'N/A' };
                 else if (model === 'gfs_seamless') rawModels.gfs = { low: cL ?? 'N/A', mid: cM ?? 'N/A', high: cH ?? 'N/A' };

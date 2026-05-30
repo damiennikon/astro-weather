@@ -229,7 +229,7 @@ function renderForecast(forecastArray) {
 
         let totalCloud = 0;
         let validCloudCount = 0;
-        let worstVerdictScore = 5;
+        let worstVerdictScore = Infinity;
         let validVerdictCount = 0;
         let hasUncertainHour = false;
         let maxMoon = 0;
@@ -548,6 +548,11 @@ window.closeModal = function (event, id) {
     if (modal) {
         modal.classList.remove('active');
         document.body.style.overflow = '';
+        if (typeof window.currentForecastData !== 'undefined' && window.currentForecastData.length > 0) {
+            if (typeof window.updateEphemerisBanner === 'function') {
+                window.updateEphemerisBanner(window.currentForecastData[0].timestamp.split('T')[0]);
+            }
+        }
     }
 }
 
