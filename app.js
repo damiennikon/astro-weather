@@ -95,13 +95,44 @@ function initServiceWorker() {
             navigator.serviceWorker.register('./sw.js')
                 .then(registration => {
                     console.log('ServiceWorker registered with scope:', registration.scope);
+                    
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        if (!newWorker) return;
+
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                showUpdateBanner(newWorker);
+                            }
+                        });
+                    });
                 })
                 .catch(err => {
                     console.error('ServiceWorker registration failed:', err);
                 });
+
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!refreshing) {
+                    refreshing = true;
+                    window.location.reload();
+                }
+            });
         });
     } else {
         console.warn('Service workers are not supported in this browser.');
+    }
+}
+
+function showUpdateBanner(worker) {
+    const banner = document.getElementById('update-banner');
+    const updateBtn = document.getElementById('update-btn');
+    if (banner && updateBtn) {
+        banner.classList.remove('hidden');
+        updateBtn.onclick = () => {
+            banner.classList.add('hidden');
+            worker.postMessage({ action: 'skipWaiting' });
+        };
     }
 }
 
