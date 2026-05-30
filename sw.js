@@ -1,4 +1,4 @@
-const CACHE_NAME = 'astro-weather-shell-v1';
+const CACHE_NAME = 'astro-weather-shell-v2';
 const API_CACHE_NAME = 'astro-weather-api-v1';
 
 const SHELL_ASSETS = [
@@ -42,7 +42,7 @@ self.addEventListener('fetch', event => {
 
     // Completely bypass Service Worker for satellite and proxy requests
     if (event.request.url.includes('corsproxy') || event.request.url.includes('himawari')) {
-        return; 
+        return;
     }
 
     // Network-first strategy for API calls (e.g., Open-Meteo or other external APIs)
@@ -65,7 +65,7 @@ self.addEventListener('fetch', event => {
                     return caches.match(event.request);
                 })
         );
-    } 
+    }
     // Cache-first strategy for app shell assets
     else {
         event.respondWith(
@@ -74,7 +74,7 @@ self.addEventListener('fetch', event => {
                     if (cachedResponse) {
                         return cachedResponse;
                     }
-                    
+
                     // If not in cache, fetch from network and add to cache
                     return fetch(event.request).then(networkResponse => {
                         if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {

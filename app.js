@@ -175,6 +175,7 @@ function renderForecast(forecastArray) {
         let gcSet = 'Not Visible';
         let darkStart = 'N/A';
         let darkEnd = 'N/A';
+        let gcEndLabel = 'Sets';
 
         if (window.Astronomy) {
             const observer = new Astronomy.Observer(currentLat, currentLon, 0);
@@ -254,6 +255,16 @@ function renderForecast(forecastArray) {
                 altStartSet = alt2;
             }
 
+            // Apply Morning Twilight Cap to Milky Way
+            if (foundGcSet && sunDarkEndObj) {
+                const gcSetDate = new Date(foundGcSet.date);
+                const sunEndDate = new Date(sunDarkEndObj.date);
+                if (sunEndDate < gcSetDate) {
+                    foundGcSet = sunDarkEndObj;
+                    gcEndLabel = "Fades";
+                }
+            }
+
             if (foundGcRise) gcRise = formatAstronomyTime(foundGcRise);
             if (foundGcSet) gcSet = formatAstronomyTime(foundGcSet);
             
@@ -275,7 +286,7 @@ function renderForecast(forecastArray) {
                 </div>
                 <div class="ephemeris-block">
                     <span class="ephemeris-title">🌌 Milky Way Core</span>
-                    <span class="ephemeris-data">Visible: ${gcRise} | Sets: ${gcSet}</span>
+                    <span class="ephemeris-data">Visible: ${gcRise} | ${gcEndLabel}: ${gcSet}</span>
                 </div>
             </div>
         `;
