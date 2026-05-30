@@ -22,6 +22,7 @@ body {
 
 header {
     padding: 1rem;
+    padding-top: calc(1rem + env(safe-area-inset-top, 0px));
     border-bottom: 1px solid var(--border-color);
     text-align: center;
     background-color: var(--card-bg);
@@ -174,6 +175,7 @@ main {
     transition: opacity 0.3s ease;
     z-index: 1000;
     padding: 1rem;
+    padding-top: calc(20px + env(safe-area-inset-top, 0px));
 }
 
 .modal-overlay.active {
@@ -234,7 +236,10 @@ main {
 
 .horizontal-scroll-container {
     display: flex;
+    align-items: flex-start;
     overflow-x: auto;
+    overflow-y: auto;
+    flex: 1;
     gap: 1rem;
     padding: 1.5rem;
     scroll-snap-type: x mandatory;
