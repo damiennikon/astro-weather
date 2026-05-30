@@ -45,14 +45,10 @@ self.onmessage = async (e) => {
         // 3. Data Alignment & Fusion
         const processedForecast = processAndFuseData(validModels, lat, lon);
         
-        // Extract daily ephemeris (Galactic Center) from the first available model's hourly time array
-        const dailyData = extractDailyEphemeris(validModels[0].data.hourly, lat, lon);
-
         // 4. Send the payload back to the UI
         self.postMessage({
             status: "success",
-            forecast: processedForecast,
-            dailyData: dailyData
+            forecast: processedForecast
         });
 
     } catch (error) {
@@ -306,69 +302,4 @@ function processAndFuseData(validModels, lat, lon) {
     }
 
     return nightForecasts;
-}
-
-function extractDailyEphemeris(hourly, lat, lon) {
-    if (!hourly || !hourly.time) return [];
-
-    const results = [];
-    const rad = Math.PI / 180;
-    const lat_rad = lat * rad;
-    
-    // Galactic Center Coordinates
-    const ra_gc = 266.4 * rad; // 17h 45.6m
-    const dec_gc = -29.0 * rad;
-    const sinAlt10 = Math.sin(10 * rad);
-    const cosHA = (sinAlt10 - Math.sin(dec_gc) * Math.sin(lat_rad)) / (Math.cos(dec_gc) * Math.cos(lat_rad));
-
-    let HA_rad = 0;
-    if (cosHA > -1 && cosHA < 1) {
-        HA_rad = Math.acos(cosHA);
-    }
-    const HA_hours = HA_rad / (15 * rad);
-    const RA_hours = 17.76; 
-
-    const LST_rise = (RA_hours - HA_hours + 24) % 24;
-    const LST_set = (RA_hours + HA_hours) % 24;
-
-    const uniqueDates = [...new Set(hourly.time.map(t => t.split('T')[0]))];
-
-    for (let i = 0; i < uniqueDates.length; i++) {
-        const dateStr = uniqueDates[i]; 
-        
-        let gcRise = "Not Visible";
-        let gcSet = "Not Visible";
-
-        if (cosHA < -1) {
-            gcRise = "Visible All Night";
-            gcSet = "Visible All Night";
-        } else if (cosHA <= 1) {
-            const dDate = new Date(dateStr + "T00:00:00"); 
-            const d = (dDate.getTime() - Date.UTC(2000, 0, 1, 12, 0, 0)) / 86400000;
-            
-            const GMST = 18.697374558 + 24.06570982441908 * d;
-            const LST_midnight = (GMST + lon / 15) % 24;
-            const LST_midnight_positive = (LST_midnight + 24) % 24;
-
-            let siderealHoursToRise = (LST_rise - LST_midnight_positive + 24) % 24;
-            let siderealHoursToSet = (LST_set - LST_midnight_positive + 24) % 24;
-
-            const solarHoursToRise = siderealHoursToRise * 0.99726958;
-            const solarHoursToSet = siderealHoursToSet * 0.99726958;
-
-            const riseTime = new Date(dDate.getTime() + solarHoursToRise * 3600000);
-            const setTime = new Date(dDate.getTime() + solarHoursToSet * 3600000);
-
-            gcRise = riseTime.toISOString();
-            gcSet = setTime.toISOString();
-        }
-
-        results.push({
-            date: dateStr,
-            gcRise: gcRise,
-            gcSet: gcSet
-        });
-    }
-
-    return results;
 }

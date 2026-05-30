@@ -195,134 +195,7 @@ function renderForecast(forecastArray) {
     window.currentForecastData = futureForecast;
 
     // Ephemeris Banner Logic
-    let ephemerisHtml = '';
-    if (futureForecast.length > 0) {
-        const firstForecastItem = futureForecast[0];
-        const targetDateStr = firstForecastItem.timestamp.split('T')[0];
-        const localNoon = new Date(targetDateStr + 'T12:00:00');
-        
-        let mRise = 'N/A';
-        let mSet = 'N/A';
-        let gcRise = 'Not Visible';
-        let gcSet = 'Not Visible';
-        let darkStart = 'N/A';
-        let darkEnd = 'N/A';
-        let gcEndLabel = 'Sets';
-
-        if (window.Astronomy) {
-            const observer = new Astronomy.Observer(currentLat, currentLon, 0);
-            
-            const formatAstronomyTime = (astroTime) => {
-                if (!astroTime || !astroTime.date) return 'N/A';
-                return new Date(astroTime.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-            };
-            
-            // Moon Transit
-            const moonriseObj = Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, +1, localNoon, 1);
-            const moonsetObj = Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, -1, localNoon, 1);
-            
-            if (moonriseObj) mRise = formatAstronomyTime(moonriseObj);
-            else mRise = "Already up/down";
-            
-            if (moonsetObj) mSet = formatAstronomyTime(moonsetObj);
-            else mSet = "Stays up/down";
-            
-            if (!moonriseObj && !moonsetObj) {
-                const testAlt = Astronomy.Horizon(localNoon, observer, Astronomy.Body.Moon, 'normal').altitude;
-                if (testAlt > 0) { mRise = "Up all day"; mSet = "Up all day"; }
-                else { mRise = "Below horizon"; mSet = "Below horizon"; }
-            }
-
-            // True Darkness (Astronomical Twilight -18 deg)
-            const sunDarkStartObj = Astronomy.SearchAltitude(Astronomy.Body.Sun, observer, -1, localNoon, 1, -18);
-            const sunDarkEndObj = Astronomy.SearchAltitude(Astronomy.Body.Sun, observer, +1, localNoon, 1, -18);
-
-            if (sunDarkStartObj) darkStart = formatAstronomyTime(sunDarkStartObj);
-            else darkStart = "Doesn't get dark";
-            
-            if (sunDarkEndObj) darkEnd = formatAstronomyTime(sunDarkEndObj);
-            else darkEnd = "Doesn't get light";
-            
-            if (!sunDarkStartObj && !sunDarkEndObj) {
-                const testAlt = Astronomy.Horizon(localNoon, observer, Astronomy.Body.Sun, 'normal').altitude;
-                if (testAlt < -18) { darkStart = "Dark all night"; darkEnd = "Dark all night"; }
-                else { darkStart = "No true darkness"; darkEnd = "No true darkness"; }
-            }
-
-            // Galactic Center
-            let foundGcRise = null;
-            let foundGcSet = null;
-
-            // Search for Rise (Visible) starting from Local Midnight (beginning of current day)
-            const localMidnight = new Date(targetDateStr + 'T00:00:00');
-            let t1 = new Astronomy.AstroTime(localMidnight);
-            let alt1 = Astronomy.Horizon(t1, observer, 17.76, -29.0, 'normal').altitude - 10;
-            
-            for (let i = 1; i <= 24; i++) {
-                let t2 = t1.AddDays(1 / 24);
-                let alt2 = Astronomy.Horizon(t2, observer, 17.76, -29.0, 'normal').altitude - 10;
-                
-                if (alt1 < 0 && alt2 >= 0) {
-                    foundGcRise = Astronomy.Search((t) => Astronomy.Horizon(t, observer, 17.76, -29.0, 'normal').altitude - 10, t1, t2);
-                    break;
-                }
-                t1 = t2;
-                alt1 = alt2;
-            }
-
-            // Search for Set starting from the found Rise time (or Noon if not found)
-            let searchStart = foundGcRise ? foundGcRise : new Astronomy.AstroTime(localNoon);
-            let tStartSet = searchStart;
-            let altStartSet = Astronomy.Horizon(tStartSet, observer, 17.76, -29.0, 'normal').altitude - 10;
-
-            for (let i = 1; i <= 24; i++) {
-                let t2 = tStartSet.AddDays(1 / 24);
-                let alt2 = Astronomy.Horizon(t2, observer, 17.76, -29.0, 'normal').altitude - 10;
-                
-                if (altStartSet >= 0 && alt2 < 0) {
-                    foundGcSet = Astronomy.Search((t) => Astronomy.Horizon(t, observer, 17.76, -29.0, 'normal').altitude - 10, tStartSet, t2);
-                    break;
-                }
-                tStartSet = t2;
-                altStartSet = alt2;
-            }
-
-            // Apply Morning Twilight Cap to Milky Way
-            if (foundGcSet && sunDarkEndObj) {
-                const gcSetDate = new Date(foundGcSet.date);
-                const sunEndDate = new Date(sunDarkEndObj.date);
-                if (sunEndDate < gcSetDate) {
-                    foundGcSet = sunDarkEndObj;
-                    gcEndLabel = "Fades";
-                }
-            }
-
-            if (foundGcRise) gcRise = formatAstronomyTime(foundGcRise);
-            if (foundGcSet) gcSet = formatAstronomyTime(foundGcSet);
-            
-            if (!foundGcRise && !foundGcSet) {
-                 const testAlt = Astronomy.Horizon(new Astronomy.AstroTime(localMidnight), observer, 17.76, -29.0, 'normal').altitude;
-                 if (testAlt > 10) { gcRise = "Visible All Night"; gcSet = "Visible All Night"; }
-            }
-        }
-
-        ephemerisHtml = `
-            <div class="ephemeris-banner">
-                <div class="ephemeris-block">
-                    <span class="ephemeris-title">🌑 True Darkness</span>
-                    <span class="ephemeris-data">Starts: ${darkStart} | Ends: ${darkEnd}</span>
-                </div>
-                <div class="ephemeris-block">
-                    <span class="ephemeris-title">🌕 Moon Transit</span>
-                    <span class="ephemeris-data">Rise: ${mRise} | Set: ${mSet}</span>
-                </div>
-                <div class="ephemeris-block">
-                    <span class="ephemeris-title">🌌 Milky Way Core</span>
-                    <span class="ephemeris-data">Visible: ${gcRise} | ${gcEndLabel}: ${gcSet}</span>
-                </div>
-            </div>
-        `;
-    }
+    let ephemerisHtml = '<div id="ephemeris-container"></div>';
 
     // Group by Night Date
     const nights = {};
@@ -352,6 +225,7 @@ function renderForecast(forecastArray) {
     for (const [nightName, hoursData] of Object.entries(nights)) {
         nightIndex++;
         const modalId = `modal-${nightIndex}`;
+        const targetDateStr = hoursData[0].timestamp.split('T')[0];
 
         let totalCloud = 0;
         let validCloudCount = 0;
@@ -459,7 +333,7 @@ function renderForecast(forecastArray) {
                         <span class="metric-label">Wind</span>
                         <span class="metric-value">${windStr}</span>
                     </div>
-                    <div class="hour-metric">AGREEMENT<br>${item.modelAgreement ?? 'N/A'} <span style="cursor:pointer; margin-left:6px; opacity:0.8; font-size:0.9em;" onclick="openConfidenceModal(${index})">ⓘ</span></div>
+                    <div class="hour-metric">AGREEMENT<br><span style="color:${confColor}">${item.modelAgreement ?? 'N/A'}</span> <span style="cursor:pointer; margin-left:6px; opacity:0.8; font-size:0.9em;" onclick="openConfidenceModal(${index})">ⓘ</span></div>
                 </div>
             `;
         });
@@ -481,7 +355,7 @@ function renderForecast(forecastArray) {
 
         // Summary Card
         html += `
-            <div class="day-card" onclick="openModal('${modalId}')">
+            <div class="day-card" onclick="openModal('${modalId}', '${targetDateStr}')">
                 <h2 class="card-header">${nightName}</h2>
                 <div class="card-summary">
                     <div class="summary-item">
@@ -519,14 +393,152 @@ function renderForecast(forecastArray) {
     }
 
     container.innerHTML = ephemerisHtml + html + modalsHtml;
+
+    if (futureForecast.length > 0) {
+        const firstForecastItem = futureForecast[0];
+        const targetDateStr = firstForecastItem.timestamp.split('T')[0];
+        window.updateEphemerisBanner(targetDateStr);
+    }
 }
 
+window.updateEphemerisBanner = function(targetDateStr) {
+    const container = document.getElementById('ephemeris-container');
+    if (!container) return;
+
+    const localNoon = new Date(targetDateStr + 'T12:00:00');
+    
+    let mRise = 'N/A';
+    let mSet = 'N/A';
+    let gcRise = 'Not Visible';
+    let gcSet = 'Not Visible';
+    let darkStart = 'N/A';
+    let darkEnd = 'N/A';
+    let gcEndLabel = 'Sets';
+
+    if (window.Astronomy) {
+        const observer = new Astronomy.Observer(currentLat, currentLon, 0);
+        
+        const formatAstronomyTime = (astroTime) => {
+            if (!astroTime || !astroTime.date) return 'N/A';
+            return new Date(astroTime.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        };
+        
+        // Moon Transit
+        const moonriseObj = Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, +1, localNoon, 1);
+        const moonsetObj = Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, -1, localNoon, 1);
+        
+        if (moonriseObj) mRise = formatAstronomyTime(moonriseObj);
+        else mRise = "Already up/down";
+        
+        if (moonsetObj) mSet = formatAstronomyTime(moonsetObj);
+        else mSet = "Stays up/down";
+        
+        if (!moonriseObj && !moonsetObj) {
+            const testAlt = Astronomy.Horizon(localNoon, observer, Astronomy.Body.Moon, 'normal').altitude;
+            if (testAlt > 0) { mRise = "Up all day"; mSet = "Up all day"; }
+            else { mRise = "Below horizon"; mSet = "Below horizon"; }
+        }
+
+        // True Darkness (Astronomical Twilight -18 deg)
+        const sunDarkStartObj = Astronomy.SearchAltitude(Astronomy.Body.Sun, observer, -1, localNoon, 1, -18);
+        const sunDarkEndObj = Astronomy.SearchAltitude(Astronomy.Body.Sun, observer, +1, localNoon, 1, -18);
+
+        if (sunDarkStartObj) darkStart = formatAstronomyTime(sunDarkStartObj);
+        else darkStart = "Doesn't get dark";
+        
+        if (sunDarkEndObj) darkEnd = formatAstronomyTime(sunDarkEndObj);
+        else darkEnd = "Doesn't get light";
+        
+        if (!sunDarkStartObj && !sunDarkEndObj) {
+            const testAlt = Astronomy.Horizon(localNoon, observer, Astronomy.Body.Sun, 'normal').altitude;
+            if (testAlt < -18) { darkStart = "Dark all night"; darkEnd = "Dark all night"; }
+            else { darkStart = "No true darkness"; darkEnd = "No true darkness"; }
+        }
+
+        // Galactic Center
+        let foundGcRise = null;
+        let foundGcSet = null;
+
+        // Search for Rise (Visible) starting from Local Midnight (beginning of current day)
+        const localMidnight = new Date(targetDateStr + 'T00:00:00');
+        let t1 = new Astronomy.AstroTime(localMidnight);
+        let alt1 = Astronomy.Horizon(t1, observer, 17.76, -29.0, 'normal').altitude - 10;
+        
+        for (let i = 1; i <= 24; i++) {
+            let t2 = t1.AddDays(1 / 24);
+            let alt2 = Astronomy.Horizon(t2, observer, 17.76, -29.0, 'normal').altitude - 10;
+            
+            if (alt1 < 0 && alt2 >= 0) {
+                foundGcRise = Astronomy.Search((t) => Astronomy.Horizon(t, observer, 17.76, -29.0, 'normal').altitude - 10, t1, t2);
+                break;
+            }
+            t1 = t2;
+            alt1 = alt2;
+        }
+
+        // Search for Set starting from the found Rise time (or Noon if not found)
+        let searchStart = foundGcRise ? foundGcRise : new Astronomy.AstroTime(localNoon);
+        let tStartSet = searchStart;
+        let altStartSet = Astronomy.Horizon(tStartSet, observer, 17.76, -29.0, 'normal').altitude - 10;
+
+        for (let i = 1; i <= 24; i++) {
+            let t2 = tStartSet.AddDays(1 / 24);
+            let alt2 = Astronomy.Horizon(t2, observer, 17.76, -29.0, 'normal').altitude - 10;
+            
+            if (altStartSet >= 0 && alt2 < 0) {
+                foundGcSet = Astronomy.Search((t) => Astronomy.Horizon(t, observer, 17.76, -29.0, 'normal').altitude - 10, tStartSet, t2);
+                break;
+            }
+            tStartSet = t2;
+            altStartSet = alt2;
+        }
+
+        // Apply Morning Twilight Cap to Milky Way
+        if (foundGcSet && sunDarkEndObj) {
+            const gcSetDate = new Date(foundGcSet.date);
+            const sunEndDate = new Date(sunDarkEndObj.date);
+            if (sunEndDate < gcSetDate) {
+                foundGcSet = sunDarkEndObj;
+                gcEndLabel = "Fades";
+            }
+        }
+
+        if (foundGcRise) gcRise = formatAstronomyTime(foundGcRise);
+        if (foundGcSet) gcSet = formatAstronomyTime(foundGcSet);
+        
+        if (!foundGcRise && !foundGcSet) {
+             const testAlt = Astronomy.Horizon(new Astronomy.AstroTime(localMidnight), observer, 17.76, -29.0, 'normal').altitude;
+             if (testAlt > 10) { gcRise = "Visible All Night"; gcSet = "Visible All Night"; }
+        }
+    }
+
+    container.innerHTML = `
+        <div class="ephemeris-banner">
+            <div class="ephemeris-block">
+                <span class="ephemeris-title">🌑 True Darkness</span>
+                <span class="ephemeris-data">Starts: ${darkStart} | Ends: ${darkEnd}</span>
+            </div>
+            <div class="ephemeris-block">
+                <span class="ephemeris-title">🌕 Moon Transit</span>
+                <span class="ephemeris-data">Rise: ${mRise} | Set: ${mSet}</span>
+            </div>
+            <div class="ephemeris-block">
+                <span class="ephemeris-title">🌌 Milky Way Core</span>
+                <span class="ephemeris-data">Visible: ${gcRise} | ${gcEndLabel}: ${gcSet}</span>
+            </div>
+        </div>
+    `;
+};
+
 // Global functions for modal interactions
-window.openModal = function (id) {
+window.openModal = function (id, targetDateStr) {
     const modal = document.getElementById(id);
     if (modal) {
         modal.classList.add('active');
         document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        if (targetDateStr) {
+            window.updateEphemerisBanner(targetDateStr);
+        }
     }
 }
 
@@ -655,7 +667,7 @@ function initLocationUI() {
                 
                 try {
                     const geoUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLat}&lon=${newLon}`;
-                    const response = await fetch(geoUrl);
+                    const response = await fetch(geoUrl, { headers: { 'User-Agent': 'AstroWeatherApp/1.0' } });
                     const data = await response.json();
                     
                     if (data && data.address) {
