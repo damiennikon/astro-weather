@@ -324,7 +324,7 @@ function processAndFuseData(validModels, lat, lon) {
             verdictTier: verdictTier,
             vetoReason: vetoReasonStr,
             moonIllumination: moonIllum,
-            isMoonAboveHorizon: isMoonAboveHorizon,
+            isMoonAboveHorizon: moonAltitude > 0,
             isAstroDark: isAstroDark,
             modelAgreement: modelAgreement,
             isUncertain: isUncertain,
