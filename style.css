@@ -206,10 +206,40 @@ main {
 }
 
 .current-score-display {
+    display: none; /* Replaced by score ring */
+}
+
+/* Score Ring */
+.score-ring-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+}
+
+.score-ring {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    border: 8px solid var(--accent-gold);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-card);
+}
+
+.score-ring .score-number {
     font-size: 3.5rem;
-    color: var(--accent-gold);
     font-weight: bold;
+    color: #FFFFFF;
     line-height: 1;
+}
+
+.score-ring .score-label {
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-top: 5px;
 }
 
 /* Metrics Grid */
@@ -339,20 +369,27 @@ main {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    border: 1px solid transparent;
-    cursor: pointer;
-    transition: background-color 0.2s, transform 0.2s;
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.outlook-card:hover {
-    background-color: #21262d;
-    transform: translateY(-2px);
+.static-card {
+    cursor: default;
 }
 
-.outlook-top {
+.static-card:hover {
+    transform: none;
+    background-color: var(--bg-card);
+}
+
+.outlook-card-content {
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+.outlook-left {
+    display: flex;
+    flex-direction: column;
 }
 
 .outlook-day {
@@ -361,16 +398,29 @@ main {
     color: var(--text-main);
 }
 
-.outlook-score {
-    color: var(--accent-gold);
-    font-size: 1.2rem;
-    font-weight: bold;
+.outlook-metrics {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 4px;
 }
 
-.outlook-verdict {
+.outlook-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.outlook-score-num {
     color: var(--accent-gold);
-    font-size: 0.9rem;
-    font-style: italic;
+    font-size: 1.8rem;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.outlook-score-label {
+    font-size: 0.8rem;
+    font-weight: bold;
+    text-transform: uppercase;
 }
 
 /* Modals */
@@ -446,6 +496,23 @@ main {
 .hidden { display: none !important; }
 .loading { text-align: center; padding: 2rem; color: var(--text-muted); font-style: italic; }
 .empty-state { text-align: center; padding: 2rem; color: var(--text-muted); }
+
+/* Empty State Default */
+.empty-state-default {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 1rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+.empty-state-default .empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+    filter: grayscale(100%);
+}
 
 /* Conf Modal Update */
 .conf-modal-overlay {

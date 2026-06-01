@@ -166,10 +166,11 @@ function initWeatherWorker(lat = LOGANHOLME_LAT, lon = LOGANHOLME_LON) {
         };
 
         // Send a postMessage to the Web Worker with the coordinates upon load
-        weatherWorker.postMessage({
-            lat: lat,
-            lon: lon
-        });
+        // Initial fetch is disabled to show the empty state by default.
+        // weatherWorker.postMessage({
+        //     lat: lat,
+        //     lon: lon
+        // });
     } else {
         forecastContainer.innerHTML = `<p style="color: red; text-align: center;">Web Workers are not supported in your browser. Cannot load forecast.</p>`;
     }
@@ -233,6 +234,7 @@ function renderForecast(forecastArray) {
         let validCloudCount = 0, validHumCount = 0, validDewCount = 0, validTempCount = 0, validWindCount = 0;
         
         let worstVerdictScore = Infinity;
+        let minScore = 100;
         let validVerdictCount = 0;
         let hasUncertainHour = false;
         let maxMoon = 0;
@@ -287,6 +289,9 @@ function renderForecast(forecastArray) {
             if (verdictScore < worstVerdictScore) {
                 worstVerdictScore = verdictScore;
             }
+            if (item.score != null && item.score < minScore) {
+                minScore = item.score;
+            }
             validVerdictCount++;
 
             let timeString = 'N/A';
@@ -333,6 +338,14 @@ function renderForecast(forecastArray) {
             }
         }
 
+        const minScoreRound = Math.round(minScore);
+        const getScoreColor = (tierScore) => {
+            if (tierScore === 4) return '#4caf50';
+            if (tierScore === 3) return '#4caf50';
+            if (tierScore === 2) return '#FBA922';
+            return '#f44336';
+        };
+
         if (isFirstNight) {
             const cloudCond = getCondText(avgCloud, { great: 20, fair: 40 });
             const humCond = getCondText(avgHum, { great: 70, fair: 85 });
@@ -341,12 +354,18 @@ function renderForecast(forecastArray) {
             const windCond = getCondText(avgWind, { great: 15, fair: 20 });
             const moonCond = getCondText(maxMoonPct, { great: 25, fair: 50 });
             const tempCond = { text: '-', class: 'cond-fair' }; // Temperature doesn't have a strict condition
+            const scoreColor = getScoreColor(worstVerdictScore);
 
             mainHtml += `
                 <div class="current-night-section">
                     <div class="current-night-header">
+                        <div class="score-ring-container">
+                            <div class="score-ring" style="border-color: ${scoreColor};">
+                                <span class="score-number">${minScoreRound}</span>
+                                <span class="score-label" style="color: ${scoreColor};">${scoreLabel}</span>
+                            </div>
+                        </div>
                         <div class="ai-summary">Overall: ${avgTransStr}</div>
-                        <div class="current-score-display">${scoreLabel}</div>
                     </div>
                     
                     <div class="metrics-grid">
@@ -388,32 +407,28 @@ function renderForecast(forecastArray) {
                 </div>
             `;
         } else {
+            const scoreColor = getScoreColor(worstVerdictScore);
             outlookHtml += `
-                <div class="outlook-card" onclick="openModal('${modalId}', '${targetDateStr}')">
-                    <div class="outlook-top">
-                        <div class="outlook-day">${nightName}</div>
-                        <div class="outlook-score">${scoreLabel}</div>
+                <div class="outlook-card static-card">
+                    <div class="outlook-card-content">
+                        <div class="outlook-left">
+                            <div class="outlook-day">${nightName}</div>
+                            <div class="outlook-metrics">
+                                ☁ ${avgCloud != null ? avgCloud + '%' : '-'} | 
+                                💧 ${avgHum != null ? avgHum + '%' : '-'} | 
+                                💨 ${avgWind != null ? avgWind + 'km/h' : '-'} | 
+                                🌕 ${maxMoonPct}%
+                            </div>
+                        </div>
+                        <div class="outlook-right">
+                            <div class="outlook-score-num">${minScoreRound}</div>
+                            <div class="outlook-score-label" style="color: ${scoreColor};">${scoreLabel}</div>
+                        </div>
                     </div>
-                    <div class="outlook-verdict">${avgTransStr}</div>
                 </div>
             `;
             
-            // Modal for Detail View (subsequent nights)
-            modalsHtml += `
-                <div id="${modalId}" class="modal-overlay" onclick="closeModal(event, '${modalId}')">
-                    <div class="modal-content" onclick="event.stopPropagation()">
-                        <div class="modal-header">
-                            <h2>${nightName}</h2>
-                            <button class="close-btn" onclick="closeModal(null, '${modalId}')">&times;</button>
-                        </div>
-                        <div style="padding: 1rem; flex: 1; overflow-y: auto;">
-                            <div class="horizontal-scroll">
-                                ${hoursHtml}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
+            // Modal functionality removed for outlook cards
         }
     }
 

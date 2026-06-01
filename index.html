@@ -15,7 +15,7 @@
 <body>
     <header>
         <h1>Astro Weather</h1>
-        <p id="location-label">Loganholme, QLD Forecast</p>
+        <p id="location-label">Select a location</p>
     </header>
     
     <main>
@@ -31,7 +31,10 @@
 
         <!-- Container for parsed weather data -->
         <div id="forecast-container">
-            <p class="loading">Loading forecast data...</p>
+            <div class="empty-state-default">
+                <div class="empty-icon">🌙</div>
+                <p>Enter your location above to reveal tonight's conditions</p>
+            </div>
         </div>
     </main>
 
