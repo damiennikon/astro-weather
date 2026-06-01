@@ -181,8 +181,8 @@ function renderForecast(forecastArray) {
     // Empty State
     if (!Array.isArray(forecastArray) || forecastArray.length === 0) {
         container.innerHTML = `
-            <div class="day-card empty-state">
-                <h2 class="card-header">No Data</h2>
+            <div class="empty-state">
+                <h2>No Data</h2>
                 <div class="empty-message">No forecast data available for the night hours.</div>
             </div>`;
         return;
@@ -217,22 +217,39 @@ function renderForecast(forecastArray) {
         nights[nightDateString].push(item);
     });
 
-    let html = '';
+    let mainHtml = '';
+    let outlookHtml = '<h2 class="outlook-header">7-Day Outlook</h2>';
     let modalsHtml = '';
 
     let nightIndex = 0;
 
     for (const [nightName, hoursData] of Object.entries(nights)) {
         nightIndex++;
+        const isFirstNight = nightIndex === 1;
         const modalId = `modal-${nightIndex}`;
         const targetDateStr = hoursData[0].timestamp.split('T')[0];
 
-        let totalCloud = 0;
-        let validCloudCount = 0;
+        let totalCloud = 0, totalHum = 0, totalDew = 0, totalTemp = 0, totalWind = 0;
+        let validCloudCount = 0, validHumCount = 0, validDewCount = 0, validTempCount = 0, validWindCount = 0;
+        
         let worstVerdictScore = Infinity;
         let validVerdictCount = 0;
         let hasUncertainHour = false;
         let maxMoon = 0;
+
+        // Condition helpers for formatting condition text
+        const getCondText = (val, thresholds) => {
+            if (val == null || isNaN(val)) return { text: '-', class: '' };
+            if (val <= thresholds.great) return { text: 'Great', class: 'cond-great' };
+            if (val <= thresholds.fair) return { text: 'Fair', class: 'cond-fair' };
+            return { text: 'Poor', class: 'cond-poor' };
+        };
+        const getCondTextInverted = (val, thresholds) => {
+            if (val == null || isNaN(val)) return { text: '-', class: '' };
+            if (val >= thresholds.great) return { text: 'Great', class: 'cond-great' };
+            if (val >= thresholds.fair) return { text: 'Fair', class: 'cond-fair' };
+            return { text: 'Poor', class: 'cond-poor' };
+        };
 
         let hoursHtml = '';
 
@@ -240,29 +257,32 @@ function renderForecast(forecastArray) {
             const index = window.currentForecastData.indexOf(item);
             if (item.isUncertain) hasUncertainHour = true;
             maxMoon = Math.max(maxMoon, item.moonIllumination ?? 0);
-            // Using worker payload values
-            let vetoReason = item.vetoReason;
-            let verdictClass = "verdict-unknown";
+            
+            let verdictClass = "dot-unknown";
             let verdictScore = 0; 
-
+            
             if (item.verdictTier === "Excellent") {
-                verdictClass = "verdict-excellent";
+                verdictClass = "dot-great";
                 verdictScore = 4;
             } else if (item.verdictTier === "Good") {
-                verdictClass = "verdict-good";
+                verdictClass = "dot-great";
                 verdictScore = 3;
             } else if (item.verdictTier === "Marginal") {
-                verdictClass = "verdict-marginal";
+                verdictClass = "dot-fair";
                 verdictScore = 2;
             } else if (item.verdictTier === "Poor") {
-                verdictClass = "verdict-poor";
+                verdictClass = "dot-poor";
                 verdictScore = 1;
             }
 
-            // Accumulators
             const maxCloud = Math.max(item.cloudLow ?? 0, item.cloudMid ?? 0, item.cloudHigh ?? 0);
             totalCloud += maxCloud;
             validCloudCount++;
+            
+            if (item.humidity != null) { totalHum += item.humidity; validHumCount++; }
+            if (item.dewPoint != null) { totalDew += item.dewPoint; validDewCount++; }
+            if (item.temp != null) { totalTemp += item.temp; validTempCount++; }
+            if (item.wind != null) { totalWind += item.wind; validWindCount++; }
 
             if (verdictScore < worstVerdictScore) {
                 worstVerdictScore = verdictScore;
@@ -272,127 +292,132 @@ function renderForecast(forecastArray) {
             let timeString = 'N/A';
             if (item.timestamp) {
                 const dateObj = new Date(item.timestamp);
-                timeString = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                timeString = dateObj.toLocaleTimeString([], { hour: 'numeric', hour12: true });
             }
 
-            const tempStr = item.temp != null ? `${Math.round(item.temp)}°C` : 'N/A';
-            const humStr = item.humidity != null ? `${Math.round(item.humidity)}%` : 'N/A';
-            const windStr = item.wind != null ? `${Math.round(item.wind)} km/h` : 'N/A';
-            
-            // Strictly use nullish coalescing ?? 'N/A' as requested
-            const cloudLowStr = (item.cloudLow != null ? `${Math.round(item.cloudLow)}%` : null) ?? 'N/A';
-            const cloudMidStr = (item.cloudMid != null ? `${Math.round(item.cloudMid)}%` : null) ?? 'N/A';
-            const cloudHighStr = (item.cloudHigh != null ? `${Math.round(item.cloudHigh)}%` : null) ?? 'N/A';
-            
-            const moonStr = item.moonIllumination != null 
-                ? `${Math.round(item.moonIllumination * 100)}% ${item.isMoonAboveHorizon ? '↑' : '↓'}` 
-                : 'N/A';
-
-            // Confidence Styling (Not strictly used in new HTML but kept if needed)
-            let confColor = '#ffffff';
-            if (item.modelAgreement === 'Models Agree') confColor = '#4caf50';
-            else if (item.modelAgreement === 'Models Mixed') confColor = '#fbc02d';
-            else if (item.modelAgreement === 'Models Disagree') confColor = '#f44336';
-
-            let vetoHtml = vetoReason ? `<div class="veto-text">${vetoReason}</div>` : '';
-            let verdictDisplayName = item.verdictTier;
-            if (item.isUncertain) {
-                verdictDisplayName += ' ⚠';
-            }
+            const tempStr = item.temp != null ? `${Math.round(item.temp)}°C` : '-';
+            const windStr = item.wind != null ? `${Math.round(item.wind)}` : '-';
+            const cloudStr = maxCloud != null ? `${Math.round(maxCloud)}%` : '-';
+            const dewStr = item.dewPoint != null ? `${Math.round(item.dewPoint)}°C` : '-';
 
             hoursHtml += `
-                <div class="hour-block">
-                    <div class="verdict-badge ${verdictClass}">${verdictDisplayName}</div>
-                    ${vetoHtml}
-                    <div class="hour-time">${timeString}</div>
-                    <div class="hour-metric">
-                        <span class="metric-label">🌕 Moon</span>
-                        <span class="metric-value">${moonStr}</span>
-                    </div>
-                    <div class="hour-metric">
-                        <span class="metric-label">☁ Low</span>
-                        <span class="metric-value">${cloudLowStr}</span>
-                    </div>
-                    <div class="hour-metric">
-                        <span class="metric-label">☁ Mid</span>
-                        <span class="metric-value">${cloudMidStr}</span>
-                    </div>
-                    <div class="hour-metric">
-                        <span class="metric-label">☁ High</span>
-                        <span class="metric-value">${cloudHighStr}</span>
-                    </div>
-                    <div class="hour-metric">
-                        <span class="metric-label">Temp</span>
-                        <span class="metric-value">${tempStr}</span>
-                    </div>
-                    <div class="hour-metric">
-                        <span class="metric-label">Hum</span>
-                        <span class="metric-value">${humStr}</span>
-                    </div>
-                    <div class="hour-metric">
-                        <span class="metric-label">Wind</span>
-                        <span class="metric-value">${windStr}</span>
-                    </div>
-                    <div class="hour-metric">AGREEMENT<br><span style="color:${confColor}">${item.modelAgreement ?? 'N/A'}</span> <span style="cursor:pointer; margin-left:6px; opacity:0.8; font-size:0.9em;" onclick="openConfidenceModal(${index})">ⓘ</span></div>
+                <div class="hourly-card" onclick="openConfidenceModal(${index})">
+                    <div class="hourly-time">${timeString}</div>
+                    <div class="hourly-score-dot ${verdictClass}"></div>
+                    <div class="hourly-metric-row">Cloud <span class="val">${cloudStr}</span></div>
+                    <div class="hourly-metric-row">Temp <span class="val">${tempStr}</span></div>
+                    <div class="hourly-metric-row">Wind <span class="val">${windStr}</span></div>
+                    <div class="hourly-metric-row">Dew <span class="val">${dewStr}</span></div>
                 </div>
             `;
         });
 
-        const avgCloud = validCloudCount > 0 ? Math.round(totalCloud / validCloudCount) : 'N/A';
-        
+        const avgCloud = validCloudCount > 0 ? Math.round(totalCloud / validCloudCount) : null;
+        const avgHum = validHumCount > 0 ? Math.round(totalHum / validHumCount) : null;
+        const avgDew = validDewCount > 0 ? Math.round(totalDew / validDewCount) : null;
+        const avgTemp = validTempCount > 0 ? Math.round(totalTemp / validTempCount) : null;
+        const avgWind = validWindCount > 0 ? Math.round(totalWind / validWindCount) : null;
+        const maxMoonPct = Math.round(maxMoon * 100);
+
         let avgTransStr = 'Unknown';
-        let summaryClass = '';
+        let scoreLabel = 'Unknown';
+        
         if (validVerdictCount > 0) {
-            if (worstVerdictScore === 4) { avgTransStr = "Excellent"; summaryClass = "verdict-excellent"; }
-            else if (worstVerdictScore === 3) { avgTransStr = "Good"; summaryClass = "verdict-good"; }
-            else if (worstVerdictScore === 2) { avgTransStr = "Marginal"; summaryClass = "verdict-marginal"; }
-            else if (worstVerdictScore === 1) { avgTransStr = "Poor"; summaryClass = "verdict-poor"; }
+            if (worstVerdictScore === 4) { avgTransStr = "Excellent conditions expected."; scoreLabel = "Excellent"; }
+            else if (worstVerdictScore === 3) { avgTransStr = "Good conditions expected."; scoreLabel = "Good"; }
+            else if (worstVerdictScore === 2) { avgTransStr = "Marginal conditions, proceed with caution."; scoreLabel = "Marginal"; }
+            else if (worstVerdictScore === 1) { avgTransStr = "Poor conditions. Not recommended."; scoreLabel = "Poor"; }
             
             if (hasUncertainHour) {
-                avgTransStr += ' ⚠ Uncertain';
+                avgTransStr += ' Models are uncertain.';
             }
         }
 
-        // Summary Card
-        html += `
-            <div class="day-card" onclick="openModal('${modalId}', '${targetDateStr}')">
-                <h2 class="card-header">${nightName}</h2>
-                <div class="card-summary">
-                    <div class="summary-item">
-                        <span class="summary-label">Avg. Cloud:</span>
-                        <span class="summary-value">${avgCloud}%</span>
-                    </div>
-                    <div class="summary-item">
-                        <span class="summary-label">Max Moon:</span>
-                        <span class="summary-value">${Math.round(maxMoon * 100)}%</span>
-                    </div>
-                    <div class="summary-item">
-                        <span class="summary-label">Night Rating:</span>
-                        <span class="summary-value ${summaryClass}">${avgTransStr}</span>
-                    </div>
-                </div>
-                <div class="card-action">Tap for details ➡</div>
-            </div>
-        `;
+        if (isFirstNight) {
+            const cloudCond = getCondText(avgCloud, { great: 20, fair: 40 });
+            const humCond = getCondText(avgHum, { great: 70, fair: 85 });
+            const dewSpread = (avgTemp != null && avgDew != null) ? (avgTemp - avgDew) : null;
+            const dewCond = dewSpread != null ? getCondTextInverted(dewSpread, { great: 4, fair: 2 }) : { text: '-', class: '' };
+            const windCond = getCondText(avgWind, { great: 15, fair: 20 });
+            const moonCond = getCondText(maxMoonPct, { great: 25, fair: 50 });
+            const tempCond = { text: '-', class: 'cond-fair' }; // Temperature doesn't have a strict condition
 
-        // Modal for Detail View
-        modalsHtml += `
-            <div id="${modalId}" class="modal-overlay" onclick="closeModal(event, '${modalId}')">
-                <div class="modal-content" onclick="event.stopPropagation()">
-                    <div class="modal-header">
-                        <h2>${nightName}</h2>
-                        <button class="close-btn" onclick="closeModal(null, '${modalId}')">&times;</button>
+            mainHtml += `
+                <div class="current-night-section">
+                    <div class="current-night-header">
+                        <div class="ai-summary">Overall: ${avgTransStr}</div>
+                        <div class="current-score-display">${scoreLabel}</div>
                     </div>
-                    <div class="scroll-hint">Swipe to see hourly forecast &rarr;</div>
-                    <div class="horizontal-scroll-container">
+                    
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-label">☁ Cloud</div>
+                            <div class="metric-value">${avgCloud != null ? avgCloud + '%' : '-'}</div>
+                            <div class="metric-condition ${cloudCond.class}">${cloudCond.text}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">💧 Humidity</div>
+                            <div class="metric-value">${avgHum != null ? avgHum + '%' : '-'}</div>
+                            <div class="metric-condition ${humCond.class}">${humCond.text}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">🌡 Dew</div>
+                            <div class="metric-value">${avgDew != null ? avgDew + '°C' : '-'}</div>
+                            <div class="metric-condition ${dewCond.class}">${dewCond.text} spread</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">🌡 Temp</div>
+                            <div class="metric-value">${avgTemp != null ? avgTemp + '°C' : '-'}</div>
+                            <div class="metric-condition ${tempCond.class}">-</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">💨 Wind</div>
+                            <div class="metric-value">${avgWind != null ? avgWind + 'km/h' : '-'}</div>
+                            <div class="metric-condition ${windCond.class}">${windCond.text}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">🌕 Moon</div>
+                            <div class="metric-value">${maxMoonPct}%</div>
+                            <div class="metric-condition ${moonCond.class}">${moonCond.text}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="horizontal-scroll">
                         ${hoursHtml}
                     </div>
                 </div>
-            </div>
-        `;
+            `;
+        } else {
+            outlookHtml += `
+                <div class="outlook-card" onclick="openModal('${modalId}', '${targetDateStr}')">
+                    <div class="outlook-top">
+                        <div class="outlook-day">${nightName}</div>
+                        <div class="outlook-score">${scoreLabel}</div>
+                    </div>
+                    <div class="outlook-verdict">${avgTransStr}</div>
+                </div>
+            `;
+            
+            // Modal for Detail View (subsequent nights)
+            modalsHtml += `
+                <div id="${modalId}" class="modal-overlay" onclick="closeModal(event, '${modalId}')">
+                    <div class="modal-content" onclick="event.stopPropagation()">
+                        <div class="modal-header">
+                            <h2>${nightName}</h2>
+                            <button class="close-btn" onclick="closeModal(null, '${modalId}')">&times;</button>
+                        </div>
+                        <div style="padding: 1rem; flex: 1; overflow-y: auto;">
+                            <div class="horizontal-scroll">
+                                ${hoursHtml}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
     }
 
-    container.innerHTML = ephemerisHtml + html + modalsHtml;
+    container.innerHTML = ephemerisHtml + mainHtml + (nightIndex > 1 ? outlookHtml : '') + modalsHtml;
 
     if (futureForecast.length > 0) {
         const firstForecastItem = futureForecast[0];
