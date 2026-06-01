@@ -690,11 +690,10 @@ function initLocationUI() {
                     weatherWorker.postMessage({ lat: newLat, lon: newLon });
                 }
             } else {
-                alert("Location not found.");
+                console.warn('Location not found or fetch failed: No results returned');
             }
         } catch (error) {
-            console.error("Geocoding error:", error);
-            alert("Failed to search location.");
+            console.warn('Location not found or fetch failed:', error);
         } finally {
             searchBtn.disabled = false;
             searchBtn.textContent = "Search";
@@ -703,7 +702,7 @@ function initLocationUI() {
 
     locateBtn.addEventListener('click', () => {
         if (!navigator.geolocation) {
-            alert("Geolocation is not supported by your browser.");
+            console.warn('Location not found or fetch failed: Geolocation is not supported by your browser.');
             return;
         }
 
@@ -741,8 +740,7 @@ function initLocationUI() {
                 locateBtn.textContent = "📍 Locate Me";
             },
             (error) => {
-                console.error("Geolocation error:", error);
-                alert("Location permission denied or unavailable.");
+                console.warn('Location not found or fetch failed:', error);
                 locateBtn.disabled = false;
                 locateBtn.textContent = "📍 Locate Me";
                 locationLabel.innerText = "Location Unknown";
