@@ -605,6 +605,10 @@ function initLocationUI() {
 
     if (!searchBtn || !locateBtn || !searchInput || !locationLabel || !suggestionsList) return;
 
+    let selectedLat = null;
+    let selectedLon = null;
+    let selectedName = '';
+
     // Autocomplete Logic
     const fetchSuggestions = debounce(async (query) => {
         if (query.length < 3) {
@@ -628,15 +632,10 @@ function initLocationUI() {
                     li.textContent = displayName;
                     
                     li.addEventListener('click', () => {
-                        const newLat = result.latitude;
-                        const newLon = result.longitude;
-                        currentLat = newLat;
-                        currentLon = newLon;
+                        selectedLat = result.latitude;
+                        selectedLon = result.longitude;
+                        selectedName = displayName;
                         searchInput.value = displayName;
-                        locationLabel.innerText = `${displayName} Forecast`;
-                        if (weatherWorker) {
-                            weatherWorker.postMessage({ lat: newLat, lon: newLon });
-                        }
                         suggestionsList.classList.add('hidden');
                     });
                     
@@ -664,6 +663,21 @@ function initLocationUI() {
     searchBtn.addEventListener('click', async () => {
         const query = searchInput.value.trim();
         if (!query) return;
+
+        // If the user clicked a suggestion and hasn't changed the text
+        if (selectedLat !== null && selectedLon !== null && query === selectedName) {
+            currentLat = selectedLat;
+            currentLon = selectedLon;
+            locationLabel.innerText = `${selectedName} Forecast`;
+            if (weatherWorker) {
+                weatherWorker.postMessage({ lat: currentLat, lon: currentLon });
+            }
+            // Reset state
+            selectedLat = null;
+            selectedLon = null;
+            selectedName = '';
+            return;
+        }
 
         try {
             searchBtn.disabled = true;
