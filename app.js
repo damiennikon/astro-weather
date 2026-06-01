@@ -57,7 +57,7 @@ window.openConfidenceModal = function(index) {
 
     let explanation = "Confidence data is currently unavailable.";
     if (item.modelAgreement === 'Models Agree') {
-        explanation = "High Confidence: ICON, GFS, and ECMWF models are forecasting nearly identical conditions. This forecast is highly reliable.";
+        explanation = "High Confidence: ICON, UKMO, and ECMWF models are forecasting nearly identical conditions. This forecast is highly reliable.";
     } else if (item.modelAgreement === 'Models Mixed') {
         explanation = "Medium Confidence: The models show slight disagreement. Actual conditions may vary slightly from this forecast.";
     } else if (item.modelAgreement === 'Models Disagree') {
@@ -69,13 +69,13 @@ window.openConfidenceModal = function(index) {
     let tbody = '';
     const m = item.rawModels || {};
     const icon = m.icon || { low: 'N/A', mid: 'N/A', high: 'N/A' };
-    const gfs = m.gfs || { low: 'N/A', mid: 'N/A', high: 'N/A' };
+    const ukmo = m.ukmo || { low: 'N/A', mid: 'N/A', high: 'N/A' };
     const ecmwf = m.ecmwf || { low: 'N/A', mid: 'N/A', high: 'N/A' };
 
     const formatVal = (val) => val === 'N/A' || val == null ? 'N/A' : Math.round(val) + '%';
 
     tbody += `<tr><td>ICON</td><td>${formatVal(icon.low)}</td><td>${formatVal(icon.mid)}</td><td>${formatVal(icon.high)}</td></tr>`;
-    tbody += `<tr><td>GFS</td><td>${formatVal(gfs.low)}</td><td>${formatVal(gfs.mid)}</td><td>${formatVal(gfs.high)}</td></tr>`;
+    tbody += `<tr><td>UKMO</td><td>${formatVal(ukmo.low)}</td><td>${formatVal(ukmo.mid)}</td><td>${formatVal(ukmo.high)}</td></tr>`;
     tbody += `<tr><td>ECMWF</td><td>${formatVal(ecmwf.low)}</td><td>${formatVal(ecmwf.mid)}</td><td>${formatVal(ecmwf.high)}</td></tr>`;
 
     document.getElementById('conf-modal-tbody').innerHTML = tbody;

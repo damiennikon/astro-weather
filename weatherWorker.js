@@ -8,7 +8,7 @@ self.onmessage = async (e) => {
     const timezone = "Australia/Brisbane";
 
     // 2. Parallel Fetching from multiple models
-    const models = ['icon_global', 'gfs_seamless', 'ecmwf_ifs025'];
+    const models = ['icon_global', 'ukmo_global', 'ecmwf_ifs025'];
     const hourlyParams = "cloud_cover_low,cloud_cover_mid,cloud_cover_high,temperature_2m,relative_humidity_2m,dew_point_2m,wind_speed_10m,wind_speed_250hPa";
 
     try {
@@ -95,7 +95,7 @@ function processAndFuseData(validModels, lat, lon) {
         const modelMaxClouds = [];
         const rawModels = {
             icon: { low: 'N/A', mid: 'N/A', high: 'N/A' },
-            gfs: { low: 'N/A', mid: 'N/A', high: 'N/A' },
+            ukmo: { low: 'N/A', mid: 'N/A', high: 'N/A' },
             ecmwf: { low: 'N/A', mid: 'N/A', high: 'N/A' }
         };
 
@@ -103,20 +103,39 @@ function processAndFuseData(validModels, lat, lon) {
         validModels.forEach(({ model, data }) => {
             const idx = data.hourly.time.indexOf(timeString);
             if (idx !== -1) {
-                const cL = data.hourly.cloud_cover_low[idx];
-                const cM = data.hourly.cloud_cover_mid[idx];
-                const cH = data.hourly.cloud_cover_high[idx];
+                let cL, cM, cH, t, h, dp, w, js;
+                
+                if (model === 'ukmo_global') {
+                    cL = data.hourly.cloud_cover_low_ukmo_global?.[idx] ?? data.hourly.cloud_cover_low?.[idx];
+                    cM = data.hourly.cloud_cover_mid_ukmo_global?.[idx] ?? data.hourly.cloud_cover_mid?.[idx];
+                    cH = data.hourly.cloud_cover_high_ukmo_global?.[idx] ?? data.hourly.cloud_cover_high?.[idx];
+                    t = data.hourly.temperature_2m_ukmo_global?.[idx] ?? data.hourly.temperature_2m?.[idx];
+                    h = data.hourly.relative_humidity_2m_ukmo_global?.[idx] ?? data.hourly.relative_humidity_2m?.[idx];
+                    dp = data.hourly.dew_point_2m_ukmo_global?.[idx] ?? data.hourly.dew_point_2m?.[idx];
+                    w = data.hourly.wind_speed_10m_ukmo_global?.[idx] ?? data.hourly.wind_speed_10m?.[idx];
+                    js = data.hourly.wind_speed_250hPa_ukmo_global?.[idx] ?? data.hourly.wind_speed_250hPa?.[idx] ?? null;
+                } else {
+                    cL = data.hourly.cloud_cover_low[idx];
+                    cM = data.hourly.cloud_cover_mid[idx];
+                    cH = data.hourly.cloud_cover_high[idx];
+                    t = data.hourly.temperature_2m[idx];
+                    h = data.hourly.relative_humidity_2m[idx];
+                    dp = data.hourly.dew_point_2m[idx];
+                    w = data.hourly.wind_speed_10m[idx];
+                    js = data.hourly.wind_speed_250hPa?.[idx] ?? null;
+                }
+
                 cloudLows.push(cL);
                 cloudMids.push(cM);
                 cloudHighs.push(cH);
-                temps.push(data.hourly.temperature_2m[idx]);
-                humidities.push(data.hourly.relative_humidity_2m[idx]);
-                dewPoints.push(data.hourly.dew_point_2m[idx]);
-                winds.push(data.hourly.wind_speed_10m[idx]);
-                jetStreams.push(data.hourly.wind_speed_250hPa?.[idx] ?? null);
+                temps.push(t);
+                humidities.push(h);
+                dewPoints.push(dp);
+                winds.push(w);
+                jetStreams.push(js);
                 
                 if (model === 'icon_global') rawModels.icon = { low: cL ?? 'N/A', mid: cM ?? 'N/A', high: cH ?? 'N/A' };
-                else if (model === 'gfs_seamless') rawModels.gfs = { low: cL ?? 'N/A', mid: cM ?? 'N/A', high: cH ?? 'N/A' };
+                else if (model === 'ukmo_global') rawModels.ukmo = { low: cL ?? 'N/A', mid: cM ?? 'N/A', high: cH ?? 'N/A' };
                 else if (model === 'ecmwf_ifs025') rawModels.ecmwf = { low: cL ?? 'N/A', mid: cM ?? 'N/A', high: cH ?? 'N/A' };
                 
                 if (cL !== null && cL !== undefined) {
