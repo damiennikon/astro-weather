@@ -711,8 +711,8 @@ function initLocationUI() {
                 currentLon = newLon;
                 
                 try {
-                    const geoUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLat}&lon=${newLon}`;
-                    const response = await fetch(geoUrl, { headers: { 'User-Agent': 'AstroWeatherApp/1.0' } });
+                    const geoUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLat}&lon=${newLon}&email=your_email@example.com`;
+                    const response = await fetch(geoUrl);
                     const data = await response.json();
                     
                     if (data && data.address) {
