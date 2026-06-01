@@ -8,7 +8,7 @@ self.onmessage = async (e) => {
     const timezone = "Australia/Brisbane";
 
     // 2. Parallel Fetching from multiple models
-    const models = ['icon_global', 'ukmo_global', 'ecmwf_ifs025'];
+    const models = ['icon_global', 'gfs_seamless', 'ecmwf_ifs025'];
     const hourlyParams = "cloud_cover_low,cloud_cover_mid,cloud_cover_high,temperature_2m,relative_humidity_2m,dew_point_2m,wind_speed_10m,wind_speed_250hPa";
 
     try {
@@ -105,15 +105,15 @@ function processAndFuseData(validModels, lat, lon) {
             if (idx !== -1) {
                 let cL, cM, cH, t, h, dp, w, js;
                 
-                if (model === 'ukmo_global') {
-                    cL = data.hourly.cloud_cover_low_ukmo_global?.[idx] ?? data.hourly.cloud_cover_low?.[idx];
-                    cM = data.hourly.cloud_cover_mid_ukmo_global?.[idx] ?? data.hourly.cloud_cover_mid?.[idx];
-                    cH = data.hourly.cloud_cover_high_ukmo_global?.[idx] ?? data.hourly.cloud_cover_high?.[idx];
-                    t = data.hourly.temperature_2m_ukmo_global?.[idx] ?? data.hourly.temperature_2m?.[idx];
-                    h = data.hourly.relative_humidity_2m_ukmo_global?.[idx] ?? data.hourly.relative_humidity_2m?.[idx];
-                    dp = data.hourly.dew_point_2m_ukmo_global?.[idx] ?? data.hourly.dew_point_2m?.[idx];
-                    w = data.hourly.wind_speed_10m_ukmo_global?.[idx] ?? data.hourly.wind_speed_10m?.[idx];
-                    js = data.hourly.wind_speed_250hPa_ukmo_global?.[idx] ?? data.hourly.wind_speed_250hPa?.[idx] ?? null;
+                if (model === 'gfs_seamless') {
+                    cL = data.hourly.cloud_cover_low_gfs_seamless?.[idx] ?? data.hourly.cloud_cover_low?.[idx];
+                    cM = data.hourly.cloud_cover_mid_gfs_seamless?.[idx] ?? data.hourly.cloud_cover_mid?.[idx];
+                    cH = data.hourly.cloud_cover_high_gfs_seamless?.[idx] ?? data.hourly.cloud_cover_high?.[idx];
+                    t = data.hourly.temperature_2m_gfs_seamless?.[idx] ?? data.hourly.temperature_2m?.[idx];
+                    h = data.hourly.relative_humidity_2m_gfs_seamless?.[idx] ?? data.hourly.relative_humidity_2m?.[idx];
+                    dp = data.hourly.dew_point_2m_gfs_seamless?.[idx] ?? data.hourly.dew_point_2m?.[idx];
+                    w = data.hourly.wind_speed_10m_gfs_seamless?.[idx] ?? data.hourly.wind_speed_10m?.[idx];
+                    js = data.hourly.wind_speed_250hPa_gfs_seamless?.[idx] ?? data.hourly.wind_speed_250hPa?.[idx] ?? null;
                 } else {
                     cL = data.hourly.cloud_cover_low[idx];
                     cM = data.hourly.cloud_cover_mid[idx];
@@ -135,7 +135,7 @@ function processAndFuseData(validModels, lat, lon) {
                 jetStreams.push(js);
                 
                 if (model === 'icon_global') rawModels.icon = { low: cL ?? 'N/A', mid: cM ?? 'N/A', high: cH ?? 'N/A' };
-                else if (model === 'ukmo_global') rawModels.ukmo = { low: cL ?? 'N/A', mid: cM ?? 'N/A', high: cH ?? 'N/A' };
+                else if (model === 'gfs_seamless') rawModels.gfs = { low: cL ?? 'N/A', mid: cM ?? 'N/A', high: cH ?? 'N/A' };
                 else if (model === 'ecmwf_ifs025') rawModels.ecmwf = { low: cL ?? 'N/A', mid: cM ?? 'N/A', high: cH ?? 'N/A' };
                 
                 if (cL !== null && cL !== undefined) {
@@ -189,25 +189,7 @@ function processAndFuseData(validModels, lat, lon) {
         const sunAltDeg = Math.asin(sinAlt) / rad;
         const isAstroDark = sunAltDeg <= -18;
 
-        // 2. Native Moon Phase, Illumination & Altitude
-        const L_moon_rad = getModulo(218.316 + 13.176396 * d, 360) * rad;
-        const M_moon_rad = getModulo(134.963 + 13.064993 * d, 360) * rad;
-        const F_moon_rad = getModulo(93.272 + 13.229350 * d, 360) * rad;
-
-        const lambda_moon_rad = L_moon_rad + 6.289 * Math.sin(M_moon_rad) * rad;
-        const beta_moon_rad = 5.128 * Math.sin(F_moon_rad) * rad;
-        
-        const obliq_rad = 23.44 * rad;
-        const sin_dec_moon = Math.sin(beta_moon_rad) * Math.cos(obliq_rad) + Math.cos(beta_moon_rad) * Math.sin(obliq_rad) * Math.sin(lambda_moon_rad);
-        const dec_moon = Math.asin(sin_dec_moon);
-        const y_moon = Math.sin(lambda_moon_rad) * Math.cos(obliq_rad) - Math.tan(beta_moon_rad) * Math.sin(obliq_rad);
-        const x_moon = Math.cos(lambda_moon_rad);
-        const ra_moon = Math.atan2(y_moon, x_moon);
-        
-        const HA_moon = (LST * 15 * rad) - ra_moon;
-        const sinAlt_moon = Math.sin(dec_moon) * Math.sin(lat_rad) + Math.cos(dec_moon) * Math.cos(lat_rad) * Math.cos(HA_moon);
-        const moonAltitude = Math.asin(sinAlt_moon) / rad;
-
+        // 2. Native Moon Phase & Illumination
         const newMoon = Date.UTC(2000, 0, 6, 18, 14, 0); // Known New Moon: Jan 6, 2000, 18:14 UTC
         const daysSinceNewMoon = (date.getTime() - newMoon) / 86400000;
         const synodicMonth = 29.530588853;
@@ -283,7 +265,7 @@ function processAndFuseData(validModels, lat, lon) {
         }
 
         // 5. Moonlight Deductions
-        if (moonAltitude > 0 && moonIllum > 0.25) {
+        if (moonIllum > 0.25) {
             score -= (moonIllum * 40); // Proportional penalty up to 40 pts
             if (moonIllum > 0.50) {
                 vetoReasons.push("Moonlight");
@@ -324,7 +306,7 @@ function processAndFuseData(validModels, lat, lon) {
             verdictTier: verdictTier,
             vetoReason: vetoReasonStr,
             moonIllumination: moonIllum,
-            isMoonAboveHorizon: moonAltitude > 0,
+            isMoonAboveHorizon: false, // Fallback placeholder
             isAstroDark: isAstroDark,
             modelAgreement: modelAgreement,
             isUncertain: isUncertain,
