@@ -233,9 +233,8 @@ function renderForecast(forecastArray) {
         let totalCloud = 0, totalHum = 0, totalDew = 0, totalTemp = 0, totalWind = 0;
         let validCloudCount = 0, validHumCount = 0, validDewCount = 0, validTempCount = 0, validWindCount = 0;
         
-        let worstVerdictScore = Infinity;
-        let minScore = 100;
-        let validVerdictCount = 0;
+        let totalScore = 0;
+        let validScoreCount = 0;
         let hasUncertainHour = false;
         let maxMoon = 0;
 
@@ -260,21 +259,17 @@ function renderForecast(forecastArray) {
             if (item.isUncertain) hasUncertainHour = true;
             maxMoon = Math.max(maxMoon, item.moonIllumination ?? 0);
             
-            let verdictClass = "dot-unknown";
-            let verdictScore = 0; 
+            const hourlyDisplayScore = item.score != null ? Math.round(item.score) : 0;
             
-            if (item.verdictTier === "Excellent") {
-                verdictClass = "dot-great";
-                verdictScore = 4;
-            } else if (item.verdictTier === "Good") {
-                verdictClass = "dot-great";
-                verdictScore = 3;
-            } else if (item.verdictTier === "Marginal") {
-                verdictClass = "dot-fair";
-                verdictScore = 2;
-            } else if (item.verdictTier === "Poor") {
-                verdictClass = "dot-poor";
-                verdictScore = 1;
+            let verdictClass = "dot-unknown";
+            if (hourlyDisplayScore >= 75) {
+                verdictClass = "dot-great"; // Green
+            } else if (hourlyDisplayScore >= 50) {
+                verdictClass = "dot-good"; // Gold
+            } else if (hourlyDisplayScore >= 25) {
+                verdictClass = "dot-fair"; // Orange
+            } else {
+                verdictClass = "dot-poor"; // Red
             }
 
             const maxCloud = Math.max(item.cloudLow ?? 0, item.cloudMid ?? 0, item.cloudHigh ?? 0);
@@ -286,13 +281,10 @@ function renderForecast(forecastArray) {
             if (item.temp != null) { totalTemp += item.temp; validTempCount++; }
             if (item.wind != null) { totalWind += item.wind; validWindCount++; }
 
-            if (verdictScore < worstVerdictScore) {
-                worstVerdictScore = verdictScore;
+            if (item.score != null) {
+                totalScore += item.score;
+                validScoreCount++;
             }
-            if (item.score != null && item.score < minScore) {
-                minScore = item.score;
-            }
-            validVerdictCount++;
 
             let timeString = 'N/A';
             if (item.timestamp) {
@@ -324,26 +316,28 @@ function renderForecast(forecastArray) {
         const avgWind = validWindCount > 0 ? Math.round(totalWind / validWindCount) : null;
         const maxMoonPct = Math.round(maxMoon * 100);
 
+        const avgScore = validScoreCount > 0 ? (totalScore / validScoreCount) : 0;
+        const displayScore = Math.round(avgScore);
+        
         let avgTransStr = 'Unknown';
         let scoreLabel = 'Unknown';
         
-        if (validVerdictCount > 0) {
-            if (worstVerdictScore === 4) { avgTransStr = "Excellent conditions expected."; scoreLabel = "Excellent"; }
-            else if (worstVerdictScore === 3) { avgTransStr = "Good conditions expected."; scoreLabel = "Good"; }
-            else if (worstVerdictScore === 2) { avgTransStr = "Marginal conditions, proceed with caution."; scoreLabel = "Marginal"; }
-            else if (worstVerdictScore === 1) { avgTransStr = "Poor conditions. Not recommended."; scoreLabel = "Poor"; }
+        if (validScoreCount > 0) {
+            if (displayScore >= 75) { avgTransStr = "Great conditions expected."; scoreLabel = "Great"; }
+            else if (displayScore >= 50) { avgTransStr = "Good conditions expected."; scoreLabel = "Good"; }
+            else if (displayScore >= 25) { avgTransStr = "Fair conditions, proceed with caution."; scoreLabel = "Fair"; }
+            else { avgTransStr = "Poor conditions. Not recommended."; scoreLabel = "Poor"; }
             
             if (hasUncertainHour) {
                 avgTransStr += ' Models are uncertain.';
             }
         }
 
-        const minScoreRound = Math.round(minScore);
-        const getScoreColor = (tierScore) => {
-            if (tierScore === 4) return '#4caf50';
-            if (tierScore === 3) return '#4caf50';
-            if (tierScore === 2) return '#FBA922';
-            return '#f44336';
+        const getScoreColor = (scoreValue) => {
+            if (scoreValue >= 75) return '#4caf50'; // Green
+            if (scoreValue >= 50) return 'var(--accent-gold)'; // Gold
+            if (scoreValue >= 25) return '#ff9800'; // Orange
+            return '#f44336'; // Red
         };
 
         if (isFirstNight) {
@@ -354,14 +348,14 @@ function renderForecast(forecastArray) {
             const windCond = getCondText(avgWind, { great: 15, fair: 20 });
             const moonCond = getCondText(maxMoonPct, { great: 25, fair: 50 });
             const tempCond = { text: '-', class: 'cond-fair' }; // Temperature doesn't have a strict condition
-            const scoreColor = getScoreColor(worstVerdictScore);
+            const scoreColor = getScoreColor(displayScore);
 
             mainHtml += `
                 <div class="current-night-section">
                     <div class="current-night-header">
                         <div class="score-ring-container">
                             <div class="score-ring" style="border-color: ${scoreColor};">
-                                <span class="score-number">${minScoreRound}</span>
+                                <span class="score-number">${displayScore}</span>
                                 <span class="score-label" style="color: ${scoreColor};">${scoreLabel}</span>
                             </div>
                         </div>
@@ -407,7 +401,7 @@ function renderForecast(forecastArray) {
                 </div>
             `;
         } else {
-            const scoreColor = getScoreColor(worstVerdictScore);
+            const scoreColor = getScoreColor(displayScore);
             outlookHtml += `
                 <div class="outlook-card static-card">
                     <div class="outlook-card-content">
@@ -421,7 +415,7 @@ function renderForecast(forecastArray) {
                             </div>
                         </div>
                         <div class="outlook-right">
-                            <div class="outlook-score-num">${minScoreRound}</div>
+                            <div class="outlook-score-num">${displayScore}</div>
                             <div class="outlook-score-label" style="color: ${scoreColor};">${scoreLabel}</div>
                         </div>
                     </div>

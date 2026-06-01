@@ -333,6 +333,7 @@ main {
     border-radius: 50%;
 }
 .dot-great { background-color: #4caf50; }
+.dot-good { background-color: var(--accent-gold); }
 .dot-fair { background-color: #ff9800; }
 .dot-poor { background-color: #f44336; }
 .dot-unknown { background-color: var(--text-muted); }

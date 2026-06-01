@@ -189,18 +189,30 @@ function processAndFuseData(validModels, lat, lon) {
         const sunAltDeg = Math.asin(sinAlt) / rad;
         const isAstroDark = sunAltDeg <= -18;
 
-        // 2. Native Moon Phase & Illumination
+        // 2. Native Moon Phase, Illumination & Altitude
+        const L_moon_rad = getModulo(218.316 + 13.176396 * d, 360) * rad;
+        const M_moon_rad = getModulo(134.963 + 13.064993 * d, 360) * rad;
+        const F_moon_rad = getModulo(93.272 + 13.229350 * d, 360) * rad;
+
+        const lambda_moon_rad = L_moon_rad + 6.289 * Math.sin(M_moon_rad) * rad;
+        const beta_moon_rad = 5.128 * Math.sin(F_moon_rad) * rad;
+        
+        const obliq_rad = 23.44 * rad;
+        const sin_dec_moon = Math.sin(beta_moon_rad) * Math.cos(obliq_rad) + Math.cos(beta_moon_rad) * Math.sin(obliq_rad) * Math.sin(lambda_moon_rad);
+        const dec_moon = Math.asin(sin_dec_moon);
+        const y_moon = Math.sin(lambda_moon_rad) * Math.cos(obliq_rad) - Math.tan(beta_moon_rad) * Math.sin(obliq_rad);
+        const x_moon = Math.cos(lambda_moon_rad);
+        const ra_moon = Math.atan2(y_moon, x_moon);
+        
+        const HA_moon = (LST * 15 * rad) - ra_moon;
+        const sinAlt_moon = Math.sin(dec_moon) * Math.sin(lat_rad) + Math.cos(dec_moon) * Math.cos(lat_rad) * Math.cos(HA_moon);
+        const moonAltitude = Math.asin(sinAlt_moon) / rad;
+
         const newMoon = Date.UTC(2000, 0, 6, 18, 14, 0); // Known New Moon: Jan 6, 2000, 18:14 UTC
         const daysSinceNewMoon = (date.getTime() - newMoon) / 86400000;
         const synodicMonth = 29.530588853;
         const phase = getModulo(daysSinceNewMoon, synodicMonth) / synodicMonth;
         const moonIllum = 0.5 * (1 - Math.cos(phase * 2 * Math.PI));
-
-        // Approximate if moon is above horizon (within ~6.5 hours of local transit)
-        const transitHour = getModulo(12 + phase * 24, 24);
-        let diff = Math.abs(hour - transitHour);
-        if (diff > 12) diff = 24 - diff;
-        const isMoonAboveHorizon = diff < 6.5;
 
         // --- SCORING ENGINE ---
         let score = 100;
@@ -271,7 +283,7 @@ function processAndFuseData(validModels, lat, lon) {
         }
 
         // 5. Moonlight Deductions
-        if (isMoonAboveHorizon && moonIllum > 0.25) {
+        if (moonAltitude > 0 && moonIllum > 0.25) {
             score -= (moonIllum * 40); // Proportional penalty up to 40 pts
             if (moonIllum > 0.50) {
                 vetoReasons.push("Moonlight");
@@ -286,12 +298,12 @@ function processAndFuseData(validModels, lat, lon) {
             verdictTier = "Poor";
             vetoReasonStr = vetoReasons.join(", ");
             score = 1; // Force score to lowest
-        } else if (score >= 85) {
-            verdictTier = "Excellent";
-        } else if (score >= 70) {
-            verdictTier = "Good";
+        } else if (score >= 75) {
+            verdictTier = "Great";
         } else if (score >= 50) {
-            verdictTier = "Marginal";
+            verdictTier = "Good";
+        } else if (score >= 25) {
+            verdictTier = "Fair";
         } else {
             verdictTier = "Poor";
         }
