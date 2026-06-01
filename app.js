@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initLocationUI();
     initConfidenceModal();
     initSatelliteModal();
+    initRedMode();
 });
 
 function initConfidenceModal() {
@@ -49,6 +50,20 @@ function initConfidenceModal() {
         </div>
     `;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function initRedMode() {
+    const redModeBtn = document.getElementById('red-mode-btn');
+    if (!redModeBtn) return;
+    
+    if (localStorage.getItem('redMode') === 'true') {
+        document.body.classList.add('red-mode');
+    }
+    
+    redModeBtn.addEventListener('click', () => {
+        document.body.classList.toggle('red-mode');
+        localStorage.setItem('redMode', document.body.classList.contains('red-mode'));
+    });
 }
 
 window.openConfidenceModal = function(index) {
