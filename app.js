@@ -235,6 +235,7 @@ function renderForecast(forecastArray) {
         
         let totalScore = 0;
         let validScoreCount = 0;
+        let worstVerdictScore = Infinity;
         let hasUncertainHour = false;
         let maxMoon = 0;
 
@@ -284,6 +285,16 @@ function renderForecast(forecastArray) {
             if (item.score != null) {
                 totalScore += item.score;
                 validScoreCount++;
+            }
+            
+            let verdictScore = 0;
+            if (item.verdictTier === "Great" || item.verdictTier === "Excellent") verdictScore = 4;
+            else if (item.verdictTier === "Good") verdictScore = 3;
+            else if (item.verdictTier === "Fair" || item.verdictTier === "Marginal") verdictScore = 2;
+            else if (item.verdictTier === "Poor") verdictScore = 1;
+            
+            if (verdictScore > 0 && verdictScore < worstVerdictScore) {
+                worstVerdictScore = verdictScore;
             }
 
             let timeString = 'N/A';
@@ -401,7 +412,25 @@ function renderForecast(forecastArray) {
                 </div>
             `;
         } else {
-            const scoreColor = getScoreColor(displayScore);
+            const rawScore = worstVerdictScore === Infinity ? 1 : worstVerdictScore;
+            const displayScorePercent = Math.round((rawScore / 4) * 100);
+            
+            let outlookScoreLabel = 'UNKNOWN';
+            let scoreColor = '#f44336';
+            if (displayScorePercent >= 75) {
+                outlookScoreLabel = 'GREAT';
+                scoreColor = '#4caf50'; // Green
+            } else if (displayScorePercent >= 50) {
+                outlookScoreLabel = 'GOOD';
+                scoreColor = 'var(--accent-gold)'; // Gold
+            } else if (displayScorePercent >= 25) {
+                outlookScoreLabel = 'FAIR';
+                scoreColor = '#ff9800'; // Orange
+            } else {
+                outlookScoreLabel = 'POOR';
+                scoreColor = '#f44336'; // Red
+            }
+
             outlookHtml += `
                 <div class="outlook-card static-card">
                     <div class="outlook-card-content">
@@ -415,8 +444,8 @@ function renderForecast(forecastArray) {
                             </div>
                         </div>
                         <div class="outlook-right">
-                            <div class="outlook-score-num">${displayScore}</div>
-                            <div class="outlook-score-label" style="color: ${scoreColor};">${scoreLabel}</div>
+                            <div class="outlook-score-num">${displayScorePercent}</div>
+                            <div class="outlook-score-label" style="color: ${scoreColor};">${outlookScoreLabel}</div>
                         </div>
                     </div>
                 </div>

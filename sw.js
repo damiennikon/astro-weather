@@ -1,4 +1,4 @@
-const CACHE_NAME = 'astro-weather-shell-v16';
+const CACHE_NAME = 'astro-weather-shell-v17';
 const API_CACHE_NAME = 'astro-weather-api-v1';
 
 const SHELL_ASSETS = [
