@@ -233,11 +233,19 @@ function processAndFuseData(validModels, lat, lon) {
                         const futureTime = sortedTimes[i + lookahead];
                         const futureTemps = [];
                         const futureDewPoints = [];
-                        validModels.forEach(({ data }) => {
+                        validModels.forEach(({ model, data }) => {
                             const idx = data.hourly.time.indexOf(futureTime);
                             if (idx !== -1) {
-                                futureTemps.push(data.hourly.temperature_2m[idx]);
-                                futureDewPoints.push(data.hourly.dew_point_2m[idx]);
+                                let fT, fDp;
+                                if (model === 'gfs_seamless') {
+                                    fT = data.hourly.temperature_2m_gfs_seamless?.[idx] ?? data.hourly.temperature_2m?.[idx];
+                                    fDp = data.hourly.dew_point_2m_gfs_seamless?.[idx] ?? data.hourly.dew_point_2m?.[idx];
+                                } else {
+                                    fT = data.hourly.temperature_2m?.[idx];
+                                    fDp = data.hourly.dew_point_2m?.[idx];
+                                }
+                                futureTemps.push(fT);
+                                futureDewPoints.push(fDp);
                             }
                         });
                         const futureAvgTemp = safeAverage(futureTemps);
@@ -266,10 +274,7 @@ function processAndFuseData(validModels, lat, lon) {
 
         // 5. Moonlight Deductions
         if (moonIllum > 0.25) {
-            score -= (moonIllum * 40); // Proportional penalty up to 40 pts
-            if (moonIllum > 0.50) {
-                vetoReasons.push("Moonlight");
-            }
+            score -= (moonIllum * 2); // Fractional deduction (max ~2 pts) so clear nights still score high
         }
 
         // --- VERDICT ASSIGNMENT ---
@@ -289,6 +294,8 @@ function processAndFuseData(validModels, lat, lon) {
         } else {
             verdictTier = "Poor";
         }
+
+        console.log("Day Calculation:", timeString, "Raw Score:", score);
 
         // Output Payload Object
         nightForecasts.push({
