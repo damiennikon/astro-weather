@@ -362,7 +362,7 @@ function renderForecast(forecastArray) {
             }
 
             if (maxMoonPct > 60) {
-                avgTransStr += ' <span style="color: var(--accent-gold);">⚠️ Note: A bright moon (>60%) will significantly wash out deep-sky targets.</span>';
+                avgTransStr += ' <span style="color: var(--accent-gold);">⚠️ Note: High lunar illumination will reduce sky contrast, affecting the visibility of the Milky Way and fainter celestial targets.</span>';
             }
         }
 
