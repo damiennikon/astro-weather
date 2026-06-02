@@ -360,6 +360,10 @@ function renderForecast(forecastArray) {
             if (hasUncertainHour) {
                 avgTransStr += ' Models are uncertain.';
             }
+
+            if (maxMoonPct > 60) {
+                avgTransStr += ' <span style="color: var(--accent-gold);">⚠️ Note: A bright moon (>60%) will significantly wash out deep-sky targets.</span>';
+            }
         }
 
         const getScoreColor = (scoreValue) => {
