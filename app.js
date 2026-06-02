@@ -278,14 +278,16 @@ function renderForecast(forecastArray) {
             const hourlyDisplayScore = item.score != null ? Math.round(item.score) : 0;
             
             let verdictClass = "dot-unknown";
-            if (hourlyDisplayScore >= 75) {
+            if (hourlyDisplayScore >= 85) {
                 verdictClass = "dot-great"; // Green
-            } else if (hourlyDisplayScore >= 50) {
+            } else if (hourlyDisplayScore >= 65) {
                 verdictClass = "dot-good"; // Gold
-            } else if (hourlyDisplayScore >= 25) {
+            } else if (hourlyDisplayScore >= 45) {
                 verdictClass = "dot-fair"; // Orange
-            } else {
+            } else if (hourlyDisplayScore >= 25) {
                 verdictClass = "dot-poor"; // Red
+            } else {
+                verdictClass = "dot-very-poor"; // Dark Red
             }
 
             const maxCloud = Math.max(item.cloudLow ?? 0, item.cloudMid ?? 0, item.cloudHigh ?? 0);
@@ -349,10 +351,11 @@ function renderForecast(forecastArray) {
         let scoreLabel = 'Unknown';
         
         if (validScoreCount > 0) {
-            if (displayScore >= 75) { avgTransStr = "Great conditions expected."; scoreLabel = "Great"; }
-            else if (displayScore >= 50) { avgTransStr = "Good conditions expected."; scoreLabel = "Good"; }
-            else if (displayScore >= 25) { avgTransStr = "Fair conditions, proceed with caution."; scoreLabel = "Fair"; }
-            else { avgTransStr = "Poor conditions. Not recommended."; scoreLabel = "Poor"; }
+            if (displayScore >= 85) { avgTransStr = "Great conditions expected."; scoreLabel = "Great"; }
+            else if (displayScore >= 65) { avgTransStr = "Good conditions expected."; scoreLabel = "Good"; }
+            else if (displayScore >= 45) { avgTransStr = "Fair conditions, proceed with caution."; scoreLabel = "Fair"; }
+            else if (displayScore >= 25) { avgTransStr = "Poor conditions. Not recommended."; scoreLabel = "Poor"; }
+            else { avgTransStr = "Very poor conditions. Avoid."; scoreLabel = "Very Poor"; }
             
             if (hasUncertainHour) {
                 avgTransStr += ' Models are uncertain.';
@@ -360,10 +363,11 @@ function renderForecast(forecastArray) {
         }
 
         const getScoreColor = (scoreValue) => {
-            if (scoreValue >= 75) return '#4caf50'; // Green
-            if (scoreValue >= 50) return 'var(--accent-gold)'; // Gold
-            if (scoreValue >= 25) return '#ff9800'; // Orange
-            return '#f44336'; // Red
+            if (scoreValue >= 85) return '#4caf50'; // Green
+            if (scoreValue >= 65) return 'var(--accent-gold)'; // Gold
+            if (scoreValue >= 45) return '#ff9800'; // Orange
+            if (scoreValue >= 25) return '#f44336'; // Red
+            return '#b71c1c'; // Dark Red
         };
 
         if (isFirstNight) {
@@ -427,23 +431,23 @@ function renderForecast(forecastArray) {
                 </div>
             `;
         } else {
-            const rawScore = worstVerdictScore === Infinity ? 1 : worstVerdictScore;
-            const displayScorePercent = Math.round((rawScore / 4) * 100);
-            
             let outlookScoreLabel = 'UNKNOWN';
-            let scoreColor = '#f44336';
-            if (displayScorePercent >= 75) {
+            let scoreColor = '#b71c1c';
+            if (displayScore >= 85) {
                 outlookScoreLabel = 'GREAT';
                 scoreColor = '#4caf50'; // Green
-            } else if (displayScorePercent >= 50) {
+            } else if (displayScore >= 65) {
                 outlookScoreLabel = 'GOOD';
                 scoreColor = 'var(--accent-gold)'; // Gold
-            } else if (displayScorePercent >= 25) {
+            } else if (displayScore >= 45) {
                 outlookScoreLabel = 'FAIR';
                 scoreColor = '#ff9800'; // Orange
-            } else {
+            } else if (displayScore >= 25) {
                 outlookScoreLabel = 'POOR';
                 scoreColor = '#f44336'; // Red
+            } else {
+                outlookScoreLabel = 'VERY POOR';
+                scoreColor = '#b71c1c'; // Dark Red
             }
 
             outlookHtml += `
@@ -459,7 +463,7 @@ function renderForecast(forecastArray) {
                             </div>
                         </div>
                         <div class="outlook-right">
-                            <div class="outlook-score-num">${displayScorePercent}</div>
+                            <div class="outlook-score-num">${displayScore}</div>
                             <div class="outlook-score-label" style="color: ${scoreColor};">${outlookScoreLabel}</div>
                         </div>
                     </div>

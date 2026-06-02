@@ -347,6 +347,7 @@ main {
 .dot-good { background-color: var(--accent-gold); }
 .dot-fair { background-color: #ff9800; }
 .dot-poor { background-color: #f44336; }
+.dot-very-poor { background-color: #b71c1c; }
 .dot-unknown { background-color: var(--text-muted); }
 
 .hourly-metric-row {

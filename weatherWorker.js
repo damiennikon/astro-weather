@@ -196,8 +196,21 @@ function processAndFuseData(validModels, lat, lon) {
         const phase = getModulo(daysSinceNewMoon, synodicMonth) / synodicMonth;
         const moonIllum = 0.5 * (1 - Math.cos(phase * 2 * Math.PI));
 
+        // Approximate Moon Altitude
+        const L_moon_rad = getModulo(218.316 + 13.176396 * d, 360) * rad;
+        const M_moon_rad = getModulo(134.963 + 13.064993 * d, 360) * rad;
+        const F_moon_rad = getModulo(93.272 + 13.229350 * d, 360) * rad;
+        const lambda_moon_rad = L_moon_rad + 6.289 * rad * Math.sin(M_moon_rad);
+        const beta_moon_rad = 5.128 * rad * Math.sin(F_moon_rad);
+        const moon_declination = Math.asin(Math.sin(beta_moon_rad) * Math.cos(23.44 * rad) + Math.cos(beta_moon_rad) * Math.sin(23.44 * rad) * Math.sin(lambda_moon_rad));
+        const moon_ra = Math.atan2(Math.sin(lambda_moon_rad) * Math.cos(23.44 * rad) - Math.tan(beta_moon_rad) * Math.sin(23.44 * rad), Math.cos(lambda_moon_rad));
+        const moon_HA = (LST * 15 * rad) - moon_ra;
+        const moon_sinAlt = Math.sin(moon_declination) * Math.sin(lat_rad) + Math.cos(moon_declination) * Math.cos(lat_rad) * Math.cos(moon_HA);
+        const moonAltDeg = Math.asin(moon_sinAlt) / rad;
+        const isMoonAboveHorizon = moonAltDeg > 0;
+
         // --- SCORING ENGINE ---
-        let score = 100;
+        let score = 0;
         const vetoReasons = [];
         const cL = avgCloudLow !== null ? Math.round(avgCloudLow) : null;
         const cM = avgCloudMid !== null ? Math.round(avgCloudMid) : null;
@@ -208,91 +221,37 @@ function processAndFuseData(validModels, lat, lon) {
         const jetStream = avgJetStream !== null ? Math.round(avgJetStream) : null;
         const humidity = avgHumidity !== null ? Math.round(avgHumidity) : null;
 
-        // 1. Data Availability Check
-        if (cL === null || cM === null || cH === null || temp === null || dewPoint === null || wind === null) {
-            vetoReasons.push("Data Unavailable");
-        } else {
-            // 2. Cloud Deductions
-            const maxCloud = Math.max(cL, cM, cH);
-            score -= (maxCloud / 100) * 35;
-            if (cL > 40) vetoReasons.push("Low Cloud");
-
-            // 3. Dew Point Deductions
-            const spread = temp - dewPoint;
-            if (spread < 2) {
-                vetoReasons.push("Dew Risk");
-            } else if (spread < 4) {
-                score -= 15;
-            }
-            
-            if (spread >= 2) {
-                // Dew Point Spread Trend (Lookahead)
-                let collapsing = false;
-                for (let lookahead = 1; lookahead <= 3; lookahead++) {
-                    if (i + lookahead < sortedTimes.length) {
-                        const futureTime = sortedTimes[i + lookahead];
-                        const futureTemps = [];
-                        const futureDewPoints = [];
-                        validModels.forEach(({ model, data }) => {
-                            const idx = data.hourly.time.indexOf(futureTime);
-                            if (idx !== -1) {
-                                let fT, fDp;
-                                if (model === 'gfs_seamless') {
-                                    fT = data.hourly.temperature_2m_gfs_seamless?.[idx] ?? data.hourly.temperature_2m?.[idx];
-                                    fDp = data.hourly.dew_point_2m_gfs_seamless?.[idx] ?? data.hourly.dew_point_2m?.[idx];
-                                } else {
-                                    fT = data.hourly.temperature_2m?.[idx];
-                                    fDp = data.hourly.dew_point_2m?.[idx];
-                                }
-                                futureTemps.push(fT);
-                                futureDewPoints.push(fDp);
-                            }
-                        });
-                        const futureAvgTemp = safeAverage(futureTemps);
-                        const futureAvgDew = safeAverage(futureDewPoints);
-                        if (futureAvgTemp !== null && futureAvgDew !== null) {
-                            if (futureAvgTemp - futureAvgDew < 4) {
-                                collapsing = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                if (collapsing) {
-                    vetoReasons.push("Dew Spread Collapsing");
-                }
-            }
-
-            // 4. Wind & Seeing Deductions
-            if (wind > 25) vetoReasons.push("High Wind");
-            else if (wind >= 20) score -= 10;
-            
-            if (jetStream !== null && jetStream > 100) {
-                score -= 10;
-            }
-        }
-
-        // 5. Moonlight Deductions
-        if (moonIllum > 0.25) {
-            score -= (moonIllum * 2); // Fractional deduction (max ~2 pts) so clear nights still score high
-        }
-
-        // --- VERDICT ASSIGNMENT ---
         let verdictTier = "Unknown";
         let vetoReasonStr = null;
 
-        if (vetoReasons.length > 0) {
-            verdictTier = "Poor";
+        // 1. Data Availability Check
+        if (cL === null || cM === null || cH === null || temp === null || dewPoint === null || wind === null || humidity === null) {
+            vetoReasons.push("Data Unavailable");
+            score = 0;
+            verdictTier = "Very Poor";
             vetoReasonStr = vetoReasons.join(", ");
-            score = 1; // Force score to lowest
-        } else if (score >= 75) {
-            verdictTier = "Great";
-        } else if (score >= 50) {
-            verdictTier = "Good";
-        } else if (score >= 25) {
-            verdictTier = "Fair";
         } else {
-            verdictTier = "Poor";
+            const maxCloud = Math.max(cL, cM, cH);
+            
+            const cloudScore = getCloudScore(maxCloud);
+            const moonScore = getMoonScore(moonIllum, moonAltDeg);
+            const humidityScore = getHumidityScore(humidity);
+            const dewSpreadScore = getDewSpreadScore(temp, dewPoint);
+            const windScore = getWindScore(wind);
+            
+            score = (cloudScore * 0.35) + (moonScore * 0.30) + (humidityScore * 0.15) + (dewSpreadScore * 0.10) + (windScore * 0.10);
+
+            if (score >= 85) {
+                verdictTier = "GREAT";
+            } else if (score >= 65) {
+                verdictTier = "GOOD";
+            } else if (score >= 45) {
+                verdictTier = "FAIR";
+            } else if (score >= 25) {
+                verdictTier = "POOR";
+            } else {
+                verdictTier = "VERY POOR";
+            }
         }
 
         console.log("Day Calculation:", timeString, "Raw Score:", score);
@@ -313,7 +272,8 @@ function processAndFuseData(validModels, lat, lon) {
             verdictTier: verdictTier,
             vetoReason: vetoReasonStr,
             moonIllumination: moonIllum,
-            isMoonAboveHorizon: false, // Fallback placeholder
+            isMoonAboveHorizon: isMoonAboveHorizon,
+
             isAstroDark: isAstroDark,
             modelAgreement: modelAgreement,
             isUncertain: isUncertain,
@@ -322,4 +282,46 @@ function processAndFuseData(validModels, lat, lon) {
     }
 
     return nightForecasts;
+}
+
+function getCloudScore(cloud) {
+    if (cloud <= 5) return 100;
+    if (cloud <= 15) return 85;
+    if (cloud <= 30) return 60;
+    if (cloud <= 50) return 30;
+    return 0;
+}
+
+function getMoonScore(illumination, altitude) {
+    if (altitude < 0) return 100;
+    const illumPct = illumination * 100;
+    if (illumPct <= 10) return 100;
+    if (illumPct <= 25) return 85;
+    if (illumPct <= 45) return 60;
+    if (illumPct <= 65) return 35;
+    if (illumPct <= 80) return 15;
+    return 0;
+}
+
+function getHumidityScore(humidity) {
+    if (humidity < 50) return 100;
+    if (humidity <= 65) return 80;
+    if (humidity <= 75) return 60;
+    if (humidity <= 85) return 35;
+    return 10;
+}
+
+function getDewSpreadScore(temp, dew) {
+    const spread = temp - dew;
+    if (spread > 8) return 100;
+    if (spread >= 5) return 75;
+    if (spread >= 3) return 45;
+    return 10;
+}
+
+function getWindScore(windKm) {
+    if (windKm <= 10) return 100;
+    if (windKm <= 20) return 75;
+    if (windKm <= 35) return 40;
+    return 10;
 }
