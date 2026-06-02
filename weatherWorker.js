@@ -227,6 +227,20 @@ function processAndFuseData(surfaceData, upperData, lat, lon) {
             
             score = (cloudScore * 0.35) + (moonScore * 0.30) + (humidityScore * 0.15) + (dewSpreadScore * 0.10) + (windScore * 0.10);
 
+            if (maxCloud > 50) {
+                score = Math.min(score, 24);
+                vetoReasons.push("Cloud > 50%");
+            }
+            
+            if (moonIllum > 0.8 && moonAltDeg > 0) {
+                score = Math.min(score, 24);
+                vetoReasons.push("Bright Moon");
+            }
+            
+            if (vetoReasons.length > 0) {
+                vetoReasonStr = vetoReasons.join(", ");
+            }
+
             if (score >= 85) {
                 verdictTier = "GREAT";
             } else if (score >= 65) {
