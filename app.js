@@ -215,19 +215,27 @@ function renderForecast(forecastArray) {
 
     // Ephemeris Banner Logic
     let ephemerisHtml = '<div id="ephemeris-container"></div>';
+    
+    const astronomyFailedAny = forecastArray.some(item => item.astronomyFailed);
+    if (astronomyFailedAny) {
+        ephemerisHtml = `<div class="warning-banner" style="background-color: #ff9800; color: #fff; padding: 10px; text-align: center; font-weight: bold; margin-bottom: 15px; border-radius: 4px;">⚠️ Astronomy data unavailable — scores may be inaccurate</div>` + ephemerisHtml;
+    }
 
     // Group by Night Date
     const nights = {};
     futureForecast.forEach(item => {
         let nightDateString = 'Unknown Date';
         if (item.timestamp) {
-            const d = new Date(item.timestamp);
-            const nightDate = new Date(d.getTime());
+            const [datePart, timePart] = item.timestamp.split('T');
+            const [year, month, day] = datePart.split('-').map(Number);
+            const hour = parseInt(timePart.split(':')[0], 10);
+            
             // A "night" spans across midnight. If hour < 12 (noon), shift to previous date's night.
-            if (nightDate.getHours() < 12) {
-                nightDate.setDate(nightDate.getDate() - 1);
+            let nightDate = new Date(Date.UTC(year, month - 1, day));
+            if (hour < 12) {
+                nightDate = new Date(Date.UTC(year, month - 1, day - 1));
             }
-            nightDateString = nightDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+            nightDateString = nightDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
         }
 
         if (!nights[nightDateString]) {

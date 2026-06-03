@@ -1,7 +1,8 @@
 // weatherWorker.js
 
 try {
-    importScripts('https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js');
+    self.window = self;
+    importScripts('./astronomy.browser.min.js');
 } catch (e) {
     console.warn("Astronomy engine import failed, fallback mechanisms will be used.", e);
 }
@@ -201,6 +202,7 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
         let moonIllum = 0;
         let moonAltDeg = -90;
         let isMoonAboveHorizon = false;
+        let astronomyFailed = false;
 
         try {
             if (typeof Astronomy === 'undefined') throw new Error('Astronomy engine not loaded');
@@ -209,7 +211,7 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             const [datePart, timePart] = timeString.split('T');
             const [year, month, day] = datePart.split('-');
             const [hourStr, minuteStr] = timePart.split(':');
-            const targetTime = new Date(Date.UTC(year, month - 1, day, hourStr, minuteStr) - (utcOffsetSeconds * 1000));
+            const targetTime = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hourStr), Number(minuteStr)) - (utcOffsetSeconds * 1000));
             
             const observer = new Astronomy.Observer(lat, lon, 0);
             const sunHorizon = Astronomy.Horizon(targetTime, observer, Astronomy.Body.Sun, 'normal');
@@ -228,6 +230,7 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             moonIllum = 0;
             moonAltDeg = -90;
             isMoonAboveHorizon = false;
+            astronomyFailed = true;
         }
 
         // --- SCORING ENGINE ---
@@ -322,6 +325,7 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             isAstroDark: isAstroDark,
             modelAgreement: modelAgreement,
             isUncertain: isUncertain,
+            astronomyFailed: astronomyFailed,
             rawModels: rawModels
         });
     }
@@ -331,14 +335,15 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
     const nights = {};
     nightForecasts.forEach(item => {
         if (!item.timestamp) return;
-        const d = new Date(item.timestamp);
-        // Use local hour from the timestamp string for grouping
-        const hour = parseInt(item.timestamp.split('T')[1].split(':')[0], 10);
-        let nightDateStr = item.timestamp.split('T')[0];
+        const [datePart, timePart] = item.timestamp.split('T');
+        const [year, month, day] = datePart.split('-').map(Number);
+        const hour = parseInt(timePart.split(':')[0], 10);
+        let nightDate = new Date(Date.UTC(year, month - 1, day));
         if (hour < 12) {
-            const prev = new Date(d.getTime() - 86400000);
-            nightDateStr = prev.toISOString().split('T')[0];
+            nightDate = new Date(Date.UTC(year, month - 1, day - 1));
         }
+        const nightDateStr = nightDate.toISOString().split('T')[0];
+        console.log(`Grouping key for hour ${hour} (${item.timestamp}):`, nightDateStr);
         if (!nights[nightDateStr]) nights[nightDateStr] = [];
         nights[nightDateStr].push(item);
     });
@@ -350,23 +355,36 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
         // Ensure sorted chronologically
         hoursData.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-        for (let i = 0; i <= hoursData.length - 3; i++) {
-            const h1 = hoursData[i];
-            const h2 = hoursData[i+1];
-            const h3 = hoursData[i+2];
+        const darkHours = hoursData.filter(h => h.isAstroDark && h.score != null);
 
-            if (h1.isAstroDark && h2.isAstroDark && h3.isAstroDark && 
-                h1.score != null && h2.score != null && h3.score != null) {
+        // Check window sizes from 3 down to 1
+        for (let size = 3; size >= 1; size--) {
+            if (darkHours.length < size) continue;
+            
+            let foundAtThisSize = false;
+            for (let i = 0; i <= darkHours.length - size; i++) {
+                const windowHours = darkHours.slice(i, i + size);
                 
-                // Check if they are consecutive hours
-                const t1 = new Date(h1.timestamp).getTime();
-                const t2 = new Date(h2.timestamp).getTime();
-                const t3 = new Date(h3.timestamp).getTime();
-                
-                if (t2 - t1 === 3600000 && t3 - t2 === 3600000) {
-                    const avgWinScore = (h1.score + h2.score + h3.score) / 3;
+                let isConsecutive = true;
+                for (let j = 0; j < windowHours.length - 1; j++) {
+                    const t1 = new Date(windowHours[j].timestamp).getTime();
+                    const t2 = new Date(windowHours[j+1].timestamp).getTime();
+                    if (t2 - t1 !== 3600000) {
+                        isConsecutive = false;
+                        break;
+                    }
+                }
+
+                if (isConsecutive) {
+                    foundAtThisSize = true;
+                    const avgWinScore = windowHours.reduce((sum, h) => sum + h.score, 0) / size;
+                    
                     if (avgWinScore > highestAvgScore) {
                         highestAvgScore = avgWinScore;
+                        
+                        const hFirst = windowHours[0];
+                        const hLast = windowHours[windowHours.length - 1];
+                        
                         const formatTime = (ts) => {
                             const hr = parseInt(ts.split('T')[1].split(':')[0], 10);
                             const ampm = hr >= 12 ? 'PM' : 'AM';
@@ -374,26 +392,28 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
                             return `${fmtHr} ${ampm}`;
                         };
                         
-                        const endHr = (parseInt(h3.timestamp.split('T')[1].split(':')[0], 10) + 1) % 24;
+                        const endHr = (parseInt(hLast.timestamp.split('T')[1].split(':')[0], 10) + 1) % 24;
                         const endAmPm = endHr >= 12 ? 'PM' : 'AM';
                         const fmtEndHr = endHr % 12 || 12;
 
                         bestWindow = {
-                            startTimeStr: formatTime(h1.timestamp),
+                            startTimeStr: formatTime(hFirst.timestamp),
                             endTimeFormatted: `${fmtEndHr} ${endAmPm}`,
                             avgScore: Math.round(avgWinScore)
                         };
                     }
                 }
             }
+            if (foundAtThisSize) break; // Stop checking smaller sizes if we found a contiguous block
         }
         
-        // Attach best window to the first item of that night so UI can access it
+        // Attach best window to the items of that night so UI can access it safely after filtering
         if (bestWindow) {
-            hoursData[0].bestWindow = {
+            const bw = {
                 text: `${bestWindow.startTimeStr} - ${bestWindow.endTimeFormatted}`,
                 score: bestWindow.avgScore
             };
+            hoursData.forEach(item => item.bestWindow = bw);
         }
     }
 

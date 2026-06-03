@@ -1,4 +1,4 @@
-const CACHE_NAME = 'astro-weather-shell-v27';
+const CACHE_NAME = 'astro-weather-shell-v28';
 const API_CACHE_NAME = 'astro-weather-api-v1';
 
 const SHELL_ASSETS = [
@@ -7,7 +7,8 @@ const SHELL_ASSETS = [
     './style.css',
     './app.js',
     './manifest.json',
-    './weatherWorker.js'
+    './weatherWorker.js',
+    './astronomy.browser.min.js'
 ];
 
 self.addEventListener('install', event => {
