@@ -35,7 +35,14 @@ self.onmessage = async (e) => {
             throw new Error("Returned empty hourly data.");
         }
 
-        const utcOffsetSeconds = surfaceData.utc_offset_seconds || 0;
+        const utc_offset_seconds = surfaceData.utc_offset_seconds;
+        console.log('UTC offset extracted:', utc_offset_seconds, typeof utc_offset_seconds);
+        
+        const offsetMs = (typeof utc_offset_seconds === 'number' && isFinite(utc_offset_seconds)) 
+            ? utc_offset_seconds * 1000 
+            : 36000000; // Fallback to Brisbane default
+            
+        const utcOffsetSeconds = offsetMs / 1000;
 
         // 3. Data Alignment & Fusion
         const processedForecast = processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds);
@@ -210,7 +217,11 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             const [datePart, timePart] = timeString.split('T');
             const [year, month, day] = datePart.split('-');
             const [hourStr, minuteStr] = timePart.split(':');
-            const targetTime = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hourStr), Number(minuteStr)) - (utcOffsetSeconds * 1000));
+            const targetTime = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hourStr), Number(minuteStr || 0)) - (utcOffsetSeconds * 1000));
+            
+            if (isNaN(targetTime.getTime())) {
+                throw new Error(`Invalid targetTime constructed from ${timeString}`);
+            }
             
             const observer = new Astronomy.Observer(lat, lon, 0);
             const sunHorizon = Astronomy.Horizon(targetTime, observer, Astronomy.Body.Sun, 'normal');
