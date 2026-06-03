@@ -171,6 +171,9 @@ function initWeatherWorker(lat = LOGANHOLME_LAT, lon = LOGANHOLME_LON) {
 
             // Render the forecast data
             if (response.status === "success") {
+                if (response.utcOffsetSeconds !== undefined) {
+                    window.currentUtcOffsetSeconds = response.utcOffsetSeconds;
+                }
                 renderForecast(response.forecast);
             }
         };
@@ -393,6 +396,7 @@ function renderForecast(forecastArray) {
                                 <span class="score-label" style="color: ${scoreColor};">${scoreLabel}</span>
                             </div>
                         </div>
+                        ${hoursData[0].bestWindow ? `<div class="optimal-window" style="margin-top: 10px; font-weight: bold; color: var(--accent-gold);">Optimal Window: ${hoursData[0].bestWindow.text} (Score: ${hoursData[0].bestWindow.score})</div>` : ''}
                         <div class="ai-summary">Overall: ${avgTransStr}</div>
                     </div>
                     
@@ -491,7 +495,15 @@ window.updateEphemerisBanner = function(targetDateStr) {
     const container = document.getElementById('ephemeris-container');
     if (!container) return;
 
-    const localNoon = new Date(targetDateStr + 'T12:00:00');
+    let targetMidnight, localNoon;
+    if (window.currentUtcOffsetSeconds !== undefined) {
+        const [year, month, day] = targetDateStr.split('-');
+        targetMidnight = new Date(Date.UTC(year, month - 1, day) - (window.currentUtcOffsetSeconds * 1000));
+        localNoon = new Date(targetMidnight.getTime() + 12 * 3600000);
+    } else {
+        targetMidnight = new Date(targetDateStr + 'T00:00:00');
+        localNoon = new Date(targetDateStr + 'T12:00:00');
+    }
     
     let mRise = 'N/A';
     let mSet = 'N/A';
@@ -510,8 +522,8 @@ window.updateEphemerisBanner = function(targetDateStr) {
         };
         
         // Moon Transit
-        const moonriseObj = Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, +1, localNoon, 1);
-        const moonsetObj = Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, -1, localNoon, 1);
+        const moonriseObj = Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, +1, localNoon, 1) || Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, +1, localNoon, -1);
+        const moonsetObj = Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, -1, localNoon, 1) || Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, -1, localNoon, -1);
         
         if (moonriseObj) mRise = formatAstronomyTime(moonriseObj);
         else mRise = "Already up/down";
@@ -546,8 +558,7 @@ window.updateEphemerisBanner = function(targetDateStr) {
         let foundGcSet = null;
 
         // Search for Rise (Visible) starting from Local Midnight (beginning of current day)
-        const localMidnight = new Date(targetDateStr + 'T00:00:00');
-        let t1 = new Astronomy.AstroTime(localMidnight);
+        let t1 = new Astronomy.AstroTime(targetMidnight);
         let alt1 = Astronomy.Horizon(t1, observer, 17.76, -29.0, 'normal').altitude - 10;
         
         for (let i = 1; i <= 24; i++) {
@@ -593,7 +604,7 @@ window.updateEphemerisBanner = function(targetDateStr) {
         if (foundGcSet) gcSet = formatAstronomyTime(foundGcSet);
         
         if (!foundGcRise && !foundGcSet) {
-             const testAlt = Astronomy.Horizon(new Astronomy.AstroTime(localMidnight), observer, 17.76, -29.0, 'normal').altitude;
+             const testAlt = Astronomy.Horizon(new Astronomy.AstroTime(targetMidnight), observer, 17.76, -29.0, 'normal').altitude;
              if (testAlt > 10) { gcRise = "Visible All Night"; gcSet = "Visible All Night"; }
         }
     }

@@ -1,5 +1,11 @@
 // weatherWorker.js
 
+try {
+    importScripts('https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js');
+} catch (e) {
+    console.warn("Astronomy engine import failed, fallback mechanisms will be used.", e);
+}
+
 self.onmessage = async (e) => {
     // 1. Data Ingestion Layer
     // Using default coordinates for Loganholme for immediate testing
@@ -29,13 +35,16 @@ self.onmessage = async (e) => {
             throw new Error("Returned empty hourly data.");
         }
 
+        const utcOffsetSeconds = surfaceData.utc_offset_seconds || 0;
+
         // 3. Data Alignment & Fusion
-        const processedForecast = processAndFuseData(surfaceData, upperData, lat, lon);
+        const processedForecast = processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds);
         
         // 4. Send the payload back to the UI
         self.postMessage({
             status: "success",
-            forecast: processedForecast
+            forecast: processedForecast,
+            utcOffsetSeconds: utcOffsetSeconds
         });
 
     } catch (error) {
@@ -46,7 +55,7 @@ self.onmessage = async (e) => {
     }
 };
 
-function processAndFuseData(surfaceData, upperData, lat, lon) {
+function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) {
     // Collect all unique timestamps to align the data
     const timeSet = new Set(surfaceData.hourly.time);
 
@@ -59,6 +68,26 @@ function processAndFuseData(surfaceData, upperData, lat, lon) {
         if (validVals.length === 0) return null;
         const sum = validVals.reduce((a, b) => a + b, 0);
         return sum / validVals.length;
+    };
+
+    const defensiveBlend = (ecmwf, ukmo, icon) => {
+        const valid = [];
+        if (ecmwf != null && !isNaN(ecmwf)) valid.push({ val: ecmwf, weight: 0.5 });
+        if (ukmo != null && !isNaN(ukmo)) valid.push({ val: ukmo, weight: 0.3 });
+        if (icon != null && !isNaN(icon)) valid.push({ val: icon, weight: 0.2 });
+        
+        if (valid.length === 0) return null;
+
+        const max = Math.max(...valid.map(v => v.val));
+        const min = Math.min(...valid.map(v => v.val));
+        const spread = max - min;
+        
+        if (valid.length === 3 && spread > 30) {
+            return min + 0.7 * spread;
+        }
+
+        const totalWeight = valid.reduce((sum, v) => sum + v.weight, 0);
+        return valid.reduce((sum, v) => sum + (v.val * (v.weight / totalWeight)), 0);
     };
 
     for (let i = 0; i < sortedTimes.length; i++) {
@@ -146,54 +175,60 @@ function processAndFuseData(surfaceData, upperData, lat, lon) {
         }
 
         // Compute safe averages
-        const avgCloudLow = safeAverage(cloudLows);
-        const avgCloudMid = safeAverage(cloudMids);
-        const avgCloudHigh = safeAverage(cloudHighs);
+        const avgCloudLow = defensiveBlend(
+            rawModels.ecmwf.low !== 'N/A' ? rawModels.ecmwf.low : null,
+            rawModels.ukmo.low !== 'N/A' ? rawModels.ukmo.low : null,
+            rawModels.icon.low !== 'N/A' ? rawModels.icon.low : null
+        );
+        const avgCloudMid = defensiveBlend(
+            rawModels.ecmwf.mid !== 'N/A' ? rawModels.ecmwf.mid : null,
+            rawModels.ukmo.mid !== 'N/A' ? rawModels.ukmo.mid : null,
+            rawModels.icon.mid !== 'N/A' ? rawModels.icon.mid : null
+        );
+        const avgCloudHigh = defensiveBlend(
+            rawModels.ecmwf.high !== 'N/A' ? rawModels.ecmwf.high : null,
+            rawModels.ukmo.high !== 'N/A' ? rawModels.ukmo.high : null,
+            rawModels.icon.high !== 'N/A' ? rawModels.icon.high : null
+        );
         const avgTemp = safeAverage(temps);
         const avgHumidity = safeAverage(humidities);
         const avgDewPoint = safeAverage(dewPoints);
         const avgWind = safeAverage(winds);
         const avgJetStream = safeAverage(jetStreams);
 
-        // --- NATIVE ASTRONOMY ENGINE ---
-        // Helper to safely handle negative modulos
-        const getModulo = (a, n) => ((a % n) + n) % n;
-        const rad = Math.PI / 180;
-        
-        // 1. Native Astronomical Twilight (Sun Altitude)
-        const d = (date.getTime() - Date.UTC(2000, 0, 1, 12, 0, 0)) / 86400000;
-        const M_rad = getModulo(356.0470 + 0.9856002585 * d, 360) * rad;
-        const C = 1.9148 * Math.sin(M_rad) + 0.0200 * Math.sin(2 * M_rad) + 0.0003 * Math.sin(3 * M_rad);
-        const lambda_rad = getModulo((M_rad/rad) + C + 180 + 102.9372, 360) * rad;
-        const declination = Math.asin(Math.sin(lambda_rad) * Math.sin(23.44 * rad));
-        const ra = Math.atan2(Math.sin(lambda_rad) * Math.cos(23.44 * rad), Math.cos(lambda_rad));
-        const GMST = 18.697374558 + 24.06570982441908 * d;
-        const LST = getModulo(GMST + lon / 15, 24);
-        const HA = (LST * 15 * rad) - ra;
-        const lat_rad = lat * rad;
-        const sinAlt = Math.sin(declination) * Math.sin(lat_rad) + Math.cos(declination) * Math.cos(lat_rad) * Math.cos(HA);
-        const sunAltDeg = Math.asin(sinAlt) / rad;
-        const isAstroDark = sunAltDeg <= -18;
+        // --- ASTRONOMY ENGINE ---
+        let isAstroDark = false;
+        let moonIllum = 0;
+        let moonAltDeg = -90;
+        let isMoonAboveHorizon = false;
 
-        // 2. Native Moon Phase & Illumination
-        const newMoon = Date.UTC(2000, 0, 6, 18, 14, 0); // Known New Moon: Jan 6, 2000, 18:14 UTC
-        const daysSinceNewMoon = (date.getTime() - newMoon) / 86400000;
-        const synodicMonth = 29.530588853;
-        const phase = getModulo(daysSinceNewMoon, synodicMonth) / synodicMonth;
-        const moonIllum = 0.5 * (1 - Math.cos(phase * 2 * Math.PI));
+        try {
+            if (typeof Astronomy === 'undefined') throw new Error('Astronomy engine not loaded');
+            
+            // Calculate exact UTC time from target location string
+            const [datePart, timePart] = timeString.split('T');
+            const [year, month, day] = datePart.split('-');
+            const [hourStr, minuteStr] = timePart.split(':');
+            const targetTime = new Date(Date.UTC(year, month - 1, day, hourStr, minuteStr) - (utcOffsetSeconds * 1000));
+            
+            const observer = new Astronomy.Observer(lat, lon, 0);
+            const sunHorizon = Astronomy.Horizon(targetTime, observer, Astronomy.Body.Sun, 'normal');
+            isAstroDark = sunHorizon.altitude <= -18;
 
-        // Approximate Moon Altitude
-        const L_moon_rad = getModulo(218.316 + 13.176396 * d, 360) * rad;
-        const M_moon_rad = getModulo(134.963 + 13.064993 * d, 360) * rad;
-        const F_moon_rad = getModulo(93.272 + 13.229350 * d, 360) * rad;
-        const lambda_moon_rad = L_moon_rad + 6.289 * rad * Math.sin(M_moon_rad);
-        const beta_moon_rad = 5.128 * rad * Math.sin(F_moon_rad);
-        const moon_declination = Math.asin(Math.sin(beta_moon_rad) * Math.cos(23.44 * rad) + Math.cos(beta_moon_rad) * Math.sin(23.44 * rad) * Math.sin(lambda_moon_rad));
-        const moon_ra = Math.atan2(Math.sin(lambda_moon_rad) * Math.cos(23.44 * rad) - Math.tan(beta_moon_rad) * Math.sin(23.44 * rad), Math.cos(lambda_moon_rad));
-        const moon_HA = (LST * 15 * rad) - moon_ra;
-        const moon_sinAlt = Math.sin(moon_declination) * Math.sin(lat_rad) + Math.cos(moon_declination) * Math.cos(lat_rad) * Math.cos(moon_HA);
-        const moonAltDeg = Math.asin(moon_sinAlt) / rad;
-        const isMoonAboveHorizon = moonAltDeg > 0;
+            const moonIllumData = Astronomy.Illumination(Astronomy.Body.Moon, targetTime);
+            moonIllum = moonIllumData.phase_fraction;
+
+            const moonHorizon = Astronomy.Horizon(targetTime, observer, Astronomy.Body.Moon, 'normal');
+            moonAltDeg = moonHorizon.altitude;
+            isMoonAboveHorizon = moonAltDeg > 0;
+            
+        } catch (error) {
+            console.error("Astronomy Engine failed to load or calculate:", error);
+            isAstroDark = true;
+            moonIllum = 0;
+            moonAltDeg = -90;
+            isMoonAboveHorizon = false;
+        }
 
         // --- SCORING ENGINE ---
         let score = 0;
@@ -220,15 +255,25 @@ function processAndFuseData(surfaceData, upperData, lat, lon) {
             const maxCloud = Math.max(cL, cM, cH);
             
             const cloudScore = getCloudScore(maxCloud);
-            const moonScore = getMoonScore(moonIllum, moonAltDeg);
+            let moonScore = getMoonScore(moonIllum, moonAltDeg);
+            
+            // Low-Altitude Moon Buffer
+            if (moonAltDeg > 0 && moonAltDeg <= 10) {
+                const penalty = 100 - moonScore;
+                moonScore = 100 - (penalty * 0.5);
+            }
+
             const humidityScore = getHumidityScore(humidity);
             const dewSpreadScore = getDewSpreadScore(temp, dewPoint);
             const windScore = getWindScore(wind);
             
             score = (cloudScore * 0.35) + (moonScore * 0.30) + (humidityScore * 0.15) + (dewSpreadScore * 0.10) + (windScore * 0.10);
 
-            if (maxCloud > 50) {
-                score = Math.min(score, 24);
+            if (maxCloud > 70) {
+                score = Math.min(score, 20);
+                vetoReasons.push("Cloud > 70%");
+            } else if (maxCloud > 50) {
+                score = Math.min(score, 35);
                 vetoReasons.push("Cloud > 50%");
             }
             
@@ -279,6 +324,77 @@ function processAndFuseData(surfaceData, upperData, lat, lon) {
             isUncertain: isUncertain,
             rawModels: rawModels
         });
+    }
+
+    // --- CALCULATE OPTIMAL 3-HOUR WINDOW ---
+    // Group by night (shift hours < 12 to previous day)
+    const nights = {};
+    nightForecasts.forEach(item => {
+        if (!item.timestamp) return;
+        const d = new Date(item.timestamp);
+        // Use local hour from the timestamp string for grouping
+        const hour = parseInt(item.timestamp.split('T')[1].split(':')[0], 10);
+        let nightDateStr = item.timestamp.split('T')[0];
+        if (hour < 12) {
+            const prev = new Date(d.getTime() - 86400000);
+            nightDateStr = prev.toISOString().split('T')[0];
+        }
+        if (!nights[nightDateStr]) nights[nightDateStr] = [];
+        nights[nightDateStr].push(item);
+    });
+
+    for (const [nightDate, hoursData] of Object.entries(nights)) {
+        let bestWindow = null;
+        let highestAvgScore = -1;
+
+        // Ensure sorted chronologically
+        hoursData.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        for (let i = 0; i <= hoursData.length - 3; i++) {
+            const h1 = hoursData[i];
+            const h2 = hoursData[i+1];
+            const h3 = hoursData[i+2];
+
+            if (h1.isAstroDark && h2.isAstroDark && h3.isAstroDark && 
+                h1.score != null && h2.score != null && h3.score != null) {
+                
+                // Check if they are consecutive hours
+                const t1 = new Date(h1.timestamp).getTime();
+                const t2 = new Date(h2.timestamp).getTime();
+                const t3 = new Date(h3.timestamp).getTime();
+                
+                if (t2 - t1 === 3600000 && t3 - t2 === 3600000) {
+                    const avgWinScore = (h1.score + h2.score + h3.score) / 3;
+                    if (avgWinScore > highestAvgScore) {
+                        highestAvgScore = avgWinScore;
+                        const formatTime = (ts) => {
+                            const hr = parseInt(ts.split('T')[1].split(':')[0], 10);
+                            const ampm = hr >= 12 ? 'PM' : 'AM';
+                            const fmtHr = hr % 12 || 12;
+                            return `${fmtHr} ${ampm}`;
+                        };
+                        
+                        const endHr = (parseInt(h3.timestamp.split('T')[1].split(':')[0], 10) + 1) % 24;
+                        const endAmPm = endHr >= 12 ? 'PM' : 'AM';
+                        const fmtEndHr = endHr % 12 || 12;
+
+                        bestWindow = {
+                            startTimeStr: formatTime(h1.timestamp),
+                            endTimeFormatted: `${fmtEndHr} ${endAmPm}`,
+                            avgScore: Math.round(avgWinScore)
+                        };
+                    }
+                }
+            }
+        }
+        
+        // Attach best window to the first item of that night so UI can access it
+        if (bestWindow) {
+            hoursData[0].bestWindow = {
+                text: `${bestWindow.startTimeStr} - ${bestWindow.endTimeFormatted}`,
+                score: bestWindow.avgScore
+            };
+        }
     }
 
     return nightForecasts;
