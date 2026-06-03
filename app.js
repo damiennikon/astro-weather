@@ -781,42 +781,58 @@ function initLocationUI() {
         locateBtn.textContent = "Locating...";
         locationLabel.innerText = "Locating...";
 
-        navigator.geolocation.getCurrentPosition(
-            async (position) => {
-                const newLat = position.coords.latitude;
-                const newLon = position.coords.longitude;
-                currentLat = newLat;
-                currentLon = newLon;
-                
-                try {
-                    const geoUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLat}&lon=${newLon}&email=your_email@example.com`;
-                    const response = await fetch(geoUrl);
-                    const data = await response.json();
+        try {
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const newLat = position.coords.latitude;
+                    const newLon = position.coords.longitude;
+                    currentLat = newLat;
+                    currentLon = newLon;
                     
-                    if (data && data.address) {
-                        const locationName = data.address.suburb || data.address.city || data.address.town || data.address.village || "Current Location";
-                        locationLabel.innerText = `${locationName} Forecast`;
-                    } else {
+                    try {
+                        const geoUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLat}&lon=${newLon}&email=your_email@example.com`;
+                        const response = await fetch(geoUrl);
+                        const data = await response.json();
+                        
+                        if (data && data.address) {
+                            const locationName = data.address.suburb || data.address.city || data.address.town || data.address.village || "Current Location";
+                            locationLabel.innerText = `${locationName} Forecast`;
+                        } else {
+                            locationLabel.innerText = "Current GPS Location";
+                        }
+                    } catch (error) {
+                        console.error("Reverse geocoding error:", error);
                         locationLabel.innerText = "Current GPS Location";
                     }
-                } catch (error) {
-                    console.error("Reverse geocoding error:", error);
-                    locationLabel.innerText = "Current GPS Location";
-                }
-                
-                if (weatherWorker) {
-                    weatherWorker.postMessage({ lat: newLat, lon: newLon });
-                }
-                locateBtn.disabled = false;
-                locateBtn.textContent = "📍 Locate Me";
-            },
-            (error) => {
-                console.warn('Location not found or fetch failed:', error);
-                locateBtn.disabled = false;
-                locateBtn.textContent = "📍 Locate Me";
-                locationLabel.innerText = "Location Unknown";
+                    
+                    if (weatherWorker) {
+                        weatherWorker.postMessage({ lat: newLat, lon: newLon });
+                    }
+                    locateBtn.disabled = false;
+                    locateBtn.textContent = "📍 Locate Me";
+                },
+                (error) => {
+                    console.warn('Location access denied or timed out:', error);
+                    locateBtn.disabled = false;
+                    locateBtn.textContent = "📍 Locate Me";
+                    locationLabel.innerText = "Location Unknown";
+                    const forecastContainer = document.getElementById('forecast-container');
+                    if (forecastContainer) {
+                        forecastContainer.innerHTML = `<p style="color: red; text-align: center; margin-top: 2rem;">Location access denied or timed out.<br>Please search for a city instead.</p>`;
+                    }
+                },
+                { timeout: 10000 }
+            );
+        } catch (error) {
+            console.warn('Geolocation error:', error);
+            locateBtn.disabled = false;
+            locateBtn.textContent = "📍 Locate Me";
+            locationLabel.innerText = "Location Error";
+            const forecastContainer = document.getElementById('forecast-container');
+            if (forecastContainer) {
+                forecastContainer.innerHTML = `<p style="color: red; text-align: center; margin-top: 2rem;">A location error occurred.<br>Please search for a city instead.</p>`;
             }
-        );
+        }
     });
 }
 

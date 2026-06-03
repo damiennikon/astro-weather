@@ -1,7 +1,6 @@
 // weatherWorker.js
 
 try {
-    self.window = self;
     importScripts('./astronomy.browser.min.js');
 } catch (e) {
     console.warn("Astronomy engine import failed, fallback mechanisms will be used.", e);
