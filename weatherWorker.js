@@ -1,7 +1,10 @@
 // weatherWorker.js
 
+let isAstronomyLoaded = false;
 try {
     importScripts('./astronomy.browser.min.js');
+    isAstronomyLoaded = true;
+    console.log("Astronomy engine loaded successfully.");
 } catch (e) {
     console.warn("Astronomy engine import failed, fallback mechanisms will be used.", e);
 }
@@ -211,7 +214,7 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
         let astronomyFailed = false;
 
         try {
-            if (typeof Astronomy === 'undefined') throw new Error('Astronomy engine not loaded');
+            if (!isAstronomyLoaded || typeof Astronomy === 'undefined') throw new Error('Astronomy engine not loaded');
             
             // Calculate exact UTC time from target location string
             const [datePart, timePart] = timeString.split('T');
@@ -224,6 +227,7 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             }
             
             const observer = new Astronomy.Observer(lat, lon, 0);
+            console.log("Evaluating Astronomy for:", { timeString, targetTimeValid: !isNaN(targetTime.getTime()), engineLoaded: isAstronomyLoaded });
             const sunHorizon = Astronomy.Horizon(targetTime, observer, Astronomy.Body.Sun, 'normal');
             isAstroDark = sunHorizon.altitude <= -18;
 
