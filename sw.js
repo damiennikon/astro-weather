@@ -1,4 +1,4 @@
-const CACHE_NAME = 'astro-weather-shell-v41';
+const CACHE_NAME = 'astro-weather-shell-v43';
 const API_CACHE_NAME = 'astro-weather-api-v1';
 
 const SHELL_ASSETS = [
@@ -44,26 +44,6 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', (event) => {
-    if (event.request.url.includes('api.open-meteo.com')) {
-        event.respondWith(
-            fetch(event.request).catch((error) => {
-                console.warn('Open-Meteo fetch failed, serving safe offline fallback JSON.', error);
-
-                // The body MUST be a valid string, and headers must be a plain object
-                const fallbackData = JSON.stringify({
-                    hourly: { time: [], temperature_2m: [] }
-                });
-
-                return new Response(fallbackData, {
-                    status: 200,
-                    statusText: "OK",
-                    headers: { 'Content-Type': 'application/json' }
-                });
-            })
-        );
-        return;
-    }
-
     // Never intercept external API calls
     if (new URL(event.request.url).origin !== self.location.origin) {
         return; // Let the browser handle it normally
