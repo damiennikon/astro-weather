@@ -159,7 +159,6 @@ function initWeatherWorker(lat = LOGANHOLME_LAT, lon = LOGANHOLME_LON) {
     if (window.Worker) {
         weatherWorker = new Worker('./weatherWorker.js');
 
-        // Listen for messages from the web worker
         weatherWorker.onmessage = function (event) {
             const response = event.data;
             console.log('Received data from weatherWorker:', response);
@@ -169,7 +168,6 @@ function initWeatherWorker(lat = LOGANHOLME_LAT, lon = LOGANHOLME_LON) {
                 return;
             }
 
-            // Render the forecast data
             if (response.status === "success") {
                 if (response.utcOffsetSeconds !== undefined) {
                     window.currentUtcOffsetSeconds = response.utcOffsetSeconds;
@@ -182,13 +180,6 @@ function initWeatherWorker(lat = LOGANHOLME_LAT, lon = LOGANHOLME_LON) {
             console.error('Error in weatherWorker:', error);
             forecastContainer.innerHTML = `<p style="color: red; text-align: center;">Failed to process weather data.</p>`;
         };
-
-        // Send a postMessage to the Web Worker with the coordinates upon load
-        // Initial fetch is disabled to show the empty state by default.
-        // weatherWorker.postMessage({
-        //     lat: lat,
-        //     lon: lon
-        // });
     } else {
         forecastContainer.innerHTML = `<p style="color: red; text-align: center;">Web Workers are not supported in your browser. Cannot load forecast.</p>`;
     }
@@ -197,7 +188,6 @@ function initWeatherWorker(lat = LOGANHOLME_LAT, lon = LOGANHOLME_LON) {
 function renderForecast(forecastArray) {
     const container = document.getElementById('forecast-container');
 
-    // Empty State
     if (!Array.isArray(forecastArray) || forecastArray.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
@@ -209,11 +199,9 @@ function renderForecast(forecastArray) {
 
     const now = new Date();
     const cutoff = new Date(now.getTime() - 60 * 60 * 1000);
-    // Filter to future and TRUE ASTRONOMICAL DARKNESS
     const futureForecast = forecastArray.filter(item => new Date(item.timestamp) >= cutoff && item.isAstroDark);
     window.currentForecastData = futureForecast;
 
-    // Ephemeris Banner Logic
     let ephemerisHtml = '<div id="ephemeris-container"></div>';
     
     const astronomyFailedAny = forecastArray.some(item => item.astronomyFailed);
@@ -221,7 +209,6 @@ function renderForecast(forecastArray) {
         ephemerisHtml = `<div class="warning-banner" style="background-color: #ff9800; color: #fff; padding: 10px; text-align: center; font-weight: bold; margin-bottom: 15px; border-radius: 4px;">⚠️ Astronomy data unavailable — scores may be inaccurate</div>` + ephemerisHtml;
     }
 
-    // Group by Night Date
     const nights = {};
     futureForecast.forEach(item => {
         let nightDateString = 'Unknown Date';
@@ -230,7 +217,6 @@ function renderForecast(forecastArray) {
             const [year, month, day] = datePart.split('-').map(Number);
             const hour = parseInt(timePart.split(':')[0], 10);
             
-            // A "night" spans across midnight. If hour < 12 (noon), shift to previous date's night.
             let nightDate = new Date(Date.UTC(year, month - 1, day));
             if (hour < 12) {
                 nightDate = new Date(Date.UTC(year, month - 1, day - 1));
@@ -253,9 +239,7 @@ function renderForecast(forecastArray) {
     for (const [nightName, hoursData] of Object.entries(nights)) {
         nightIndex++;
         const isFirstNight = nightIndex === 1;
-        const modalId = `modal-${nightIndex}`;
-        const targetDateStr = hoursData[0].timestamp.split('T')[0];
-
+        
         let totalCloud = 0, totalHum = 0, totalDew = 0, totalTemp = 0, totalWind = 0;
         let validCloudCount = 0, validHumCount = 0, validDewCount = 0, validTempCount = 0, validWindCount = 0;
         
@@ -265,7 +249,6 @@ function renderForecast(forecastArray) {
         let hasUncertainHour = false;
         let maxMoon = 0;
 
-        // Condition helpers for formatting condition text
         const getCondText = (val, thresholds) => {
             if (val == null || isNaN(val)) return { text: '-', class: '' };
             if (val <= thresholds.great) return { text: 'Great', class: 'cond-great' };
@@ -289,17 +272,11 @@ function renderForecast(forecastArray) {
             const hourlyDisplayScore = item.score != null ? Math.round(item.score) : 0;
             
             let verdictClass = "dot-unknown";
-            if (hourlyDisplayScore >= 85) {
-                verdictClass = "dot-great"; // Green
-            } else if (hourlyDisplayScore >= 65) {
-                verdictClass = "dot-good"; // Gold
-            } else if (hourlyDisplayScore >= 45) {
-                verdictClass = "dot-fair"; // Orange
-            } else if (hourlyDisplayScore >= 25) {
-                verdictClass = "dot-poor"; // Red
-            } else {
-                verdictClass = "dot-very-poor"; // Dark Red
-            }
+            if (hourlyDisplayScore >= 85) verdictClass = "dot-great"; 
+            else if (hourlyDisplayScore >= 65) verdictClass = "dot-good"; 
+            else if (hourlyDisplayScore >= 45) verdictClass = "dot-fair"; 
+            else if (hourlyDisplayScore >= 25) verdictClass = "dot-poor"; 
+            else verdictClass = "dot-very-poor"; 
 
             const maxCloud = Math.max(item.cloudLow ?? 0, item.cloudMid ?? 0, item.cloudHigh ?? 0);
             totalCloud += maxCloud;
@@ -378,11 +355,11 @@ function renderForecast(forecastArray) {
         }
 
         const getScoreColor = (scoreValue) => {
-            if (scoreValue >= 85) return '#4caf50'; // Green
-            if (scoreValue >= 65) return 'var(--accent-gold)'; // Gold
-            if (scoreValue >= 45) return '#ff9800'; // Orange
-            if (scoreValue >= 25) return '#f44336'; // Red
-            return '#b71c1c'; // Dark Red
+            if (scoreValue >= 85) return '#4caf50'; 
+            if (scoreValue >= 65) return 'var(--accent-gold)'; 
+            if (scoreValue >= 45) return '#ff9800'; 
+            if (scoreValue >= 25) return '#f44336'; 
+            return '#b71c1c'; 
         };
 
         if (isFirstNight) {
@@ -392,7 +369,7 @@ function renderForecast(forecastArray) {
             const dewCond = dewSpread != null ? getCondTextInverted(dewSpread, { great: 4, fair: 2 }) : { text: '-', class: '' };
             const windCond = getCondText(avgWind, { great: 15, fair: 20 });
             const moonCond = getCondText(maxMoonPct, { great: 25, fair: 50 });
-            const tempCond = { text: '-', class: 'cond-fair' }; // Temperature doesn't have a strict condition
+            const tempCond = { text: '-', class: 'cond-fair' }; 
             const scoreColor = getScoreColor(displayScore);
 
             mainHtml += `
@@ -451,19 +428,19 @@ function renderForecast(forecastArray) {
             let scoreColor = '#b71c1c';
             if (displayScore >= 85) {
                 outlookScoreLabel = 'GREAT';
-                scoreColor = '#4caf50'; // Green
+                scoreColor = '#4caf50'; 
             } else if (displayScore >= 65) {
                 outlookScoreLabel = 'GOOD';
-                scoreColor = 'var(--accent-gold)'; // Gold
+                scoreColor = 'var(--accent-gold)'; 
             } else if (displayScore >= 45) {
                 outlookScoreLabel = 'FAIR';
-                scoreColor = '#ff9800'; // Orange
+                scoreColor = '#ff9800'; 
             } else if (displayScore >= 25) {
                 outlookScoreLabel = 'POOR';
-                scoreColor = '#f44336'; // Red
+                scoreColor = '#f44336'; 
             } else {
                 outlookScoreLabel = 'VERY POOR';
-                scoreColor = '#b71c1c'; // Dark Red
+                scoreColor = '#b71c1c'; 
             }
 
             outlookHtml += `
@@ -485,8 +462,6 @@ function renderForecast(forecastArray) {
                     </div>
                 </div>
             `;
-            
-            // Modal functionality removed for outlook cards
         }
     }
 
@@ -513,13 +488,7 @@ window.updateEphemerisBanner = function(targetDateStr) {
         localNoon = new Date(targetDateStr + 'T12:00:00');
     }
     
-    let mRise = 'N/A';
-    let mSet = 'N/A';
-    let gcRise = 'Not Visible';
-    let gcSet = 'Not Visible';
-    let darkStart = 'N/A';
-    let darkEnd = 'N/A';
-    let gcEndLabel = 'Sets';
+    let mRise = 'N/A', mSet = 'N/A', gcRise = 'Not Visible', gcSet = 'Not Visible', darkStart = 'N/A', darkEnd = 'N/A', gcEndLabel = 'Sets';
 
     if (window.Astronomy) {
         const observer = new Astronomy.Observer(currentLat, currentLon, 0);
@@ -529,7 +498,6 @@ window.updateEphemerisBanner = function(targetDateStr) {
             return new Date(astroTime.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         };
         
-        // Moon Transit
         const moonriseObj = Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, +1, localNoon, 1) || Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, +1, localNoon, -1);
         const moonsetObj = Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, -1, localNoon, 1) || Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, -1, localNoon, -1);
         
@@ -545,7 +513,6 @@ window.updateEphemerisBanner = function(targetDateStr) {
             else { mRise = "Below horizon"; mSet = "Below horizon"; }
         }
 
-        // True Darkness (Astronomical Twilight -18 deg)
         const sunDarkStartObj = Astronomy.SearchAltitude(Astronomy.Body.Sun, observer, -1, localNoon, 1, -18);
         const sunDarkEndObj = Astronomy.SearchAltitude(Astronomy.Body.Sun, observer, +1, localNoon, 1, -18);
 
@@ -561,11 +528,7 @@ window.updateEphemerisBanner = function(targetDateStr) {
             else { darkStart = "No true darkness"; darkEnd = "No true darkness"; }
         }
 
-        // Galactic Center
-        let foundGcRise = null;
-        let foundGcSet = null;
-
-        // Search for Rise (Visible) starting from Local Midnight (beginning of current day)
+        let foundGcRise = null, foundGcSet = null;
         let t1 = new Astronomy.AstroTime(targetMidnight);
         let alt1 = Astronomy.Horizon(t1, observer, 17.76, -29.0, 'normal').altitude - 10;
         
@@ -581,7 +544,6 @@ window.updateEphemerisBanner = function(targetDateStr) {
             alt1 = alt2;
         }
 
-        // Search for Set starting from the found Rise time (or Noon if not found)
         let searchStart = foundGcRise ? foundGcRise : new Astronomy.AstroTime(localNoon);
         let tStartSet = searchStart;
         let altStartSet = Astronomy.Horizon(tStartSet, observer, 17.76, -29.0, 'normal').altitude - 10;
@@ -598,7 +560,6 @@ window.updateEphemerisBanner = function(targetDateStr) {
             altStartSet = alt2;
         }
 
-        // Apply Morning Twilight Cap to Milky Way
         if (foundGcSet && sunDarkEndObj) {
             const gcSetDate = new Date(foundGcSet.date);
             const sunEndDate = new Date(sunDarkEndObj.date);
@@ -635,12 +596,11 @@ window.updateEphemerisBanner = function(targetDateStr) {
     `;
 };
 
-// Global functions for modal interactions
 window.openModal = function (id, targetDateStr) {
     const modal = document.getElementById(id);
     if (modal) {
         modal.classList.add('active');
-        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        document.body.style.overflow = 'hidden'; 
         if (targetDateStr) {
             window.updateEphemerisBanner(targetDateStr);
         }
@@ -648,7 +608,7 @@ window.openModal = function (id, targetDateStr) {
 }
 
 window.closeModal = function (event, id) {
-    if (event && event.target && event.target.id !== id && !event.target.classList.contains('close-btn')) return; // Only close if clicking the overlay or close btn
+    if (event && event.target && event.target.id !== id && !event.target.classList.contains('close-btn')) return; 
     const modal = document.getElementById(id);
     if (modal) {
         modal.classList.remove('active');
@@ -674,7 +634,6 @@ function initLocationUI() {
     let selectedLon = null;
     let selectedName = '';
 
-    // Autocomplete Logic
     const fetchSuggestions = debounce(async (query) => {
         if (query.length < 3) {
             suggestionsList.innerHTML = '';
@@ -729,7 +688,6 @@ function initLocationUI() {
         const query = searchInput.value.trim();
         if (!query) return;
 
-        // If the user clicked a suggestion and hasn't changed the text
         if (selectedLat !== null && selectedLon !== null && query === selectedName) {
             currentLat = selectedLat;
             currentLon = selectedLon;
@@ -737,7 +695,6 @@ function initLocationUI() {
             if (weatherWorker) {
                 weatherWorker.postMessage({ lat: currentLat, lon: currentLon });
             }
-            // Reset state
             selectedLat = null;
             selectedLon = null;
             selectedName = '';
@@ -771,6 +728,7 @@ function initLocationUI() {
         }
     });
 
+    // Added comprehensive try/catch & timeout resets for location hangs
     locateBtn.addEventListener('click', () => {
         if (!navigator.geolocation) {
             console.warn('Location not found or fetch failed: Geolocation is not supported by your browser.');
