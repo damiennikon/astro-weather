@@ -247,7 +247,7 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
 
             // Moon illumination
             const moonIllumData = Astronomy.Illumination(Astronomy.Body.Moon, targetTime);
-            moonIllum = moonIllumData.phase_fraction;
+            moonIllum = moonIllumData.disc_light_fraction;
 
             // Moon altitude
             const moonHorizon = Astronomy.Horizon(targetTime, observer, Astronomy.Body.Moon, 'normal');
