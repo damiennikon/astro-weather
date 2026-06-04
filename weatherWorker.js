@@ -14,7 +14,7 @@ self.onmessage = async (e) => {
     // Using default coordinates for Loganholme for immediate testing
     const lat = e.data?.lat || -27.6833;
     const lon = e.data?.lon || 153.1833;
-    const timezone = "Australia/Brisbane";
+    const timezone = "auto";
 
     // 2. Dual-Stream Fetching from multiple models
     const surfaceModels = "ecmwf_ifs04,icon_global,ukmo_seamless";
@@ -41,11 +41,9 @@ self.onmessage = async (e) => {
         const utc_offset_seconds = surfaceData.utc_offset_seconds;
         console.log('UTC offset extracted:', utc_offset_seconds, typeof utc_offset_seconds);
         
-        const offsetMs = (typeof utc_offset_seconds === 'number' && isFinite(utc_offset_seconds)) 
-            ? utc_offset_seconds * 1000 
-            : 36000000; // Fallback to Brisbane default
+        const safeOffsetSeconds = (typeof utc_offset_seconds === 'number' && !isNaN(utc_offset_seconds)) ? utc_offset_seconds : 36000;
             
-        const utcOffsetSeconds = offsetMs / 1000;
+        const utcOffsetSeconds = safeOffsetSeconds;
 
         // 3. Data Alignment & Fusion
         const processedForecast = processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds);
@@ -216,17 +214,23 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
         try {
             if (!isAstronomyLoaded || typeof Astronomy === 'undefined') throw new Error('Astronomy engine not loaded');
             
-            // Calculate exact UTC time from target location string
-            const [datePart, timePart] = timeString.split('T');
-            const [year, month, day] = datePart.split('-');
-            const [hourStr, minuteStr] = timePart.split(':');
-            const targetTime = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hourStr), Number(minuteStr || 0)) - (utcOffsetSeconds * 1000));
+            // Force lat/lon to Number
+            const numLat = Number(lat);
+            const numLon = Number(lon);
+            
+            // Append 'Z' to force JS engine to interpret it as unambiguous UTC
+            const utcTimestamp = timeString.length === 16 ? timeString + ':00Z' : timeString + 'Z';
+            const utcDate = new Date(utcTimestamp);
+            
+            // Calculate the absolute targetTime by subtracting safeOffsetSeconds * 1000 from the UTC time
+            const safeOffsetSeconds = typeof utcOffsetSeconds === 'number' && !isNaN(utcOffsetSeconds) ? utcOffsetSeconds : 36000;
+            const targetTime = new Date(utcDate.getTime() - (safeOffsetSeconds * 1000));
             
             if (isNaN(targetTime.getTime())) {
                 throw new Error(`Invalid targetTime constructed from ${timeString}`);
             }
             
-            const observer = new Astronomy.Observer(lat, lon, 0);
+            const observer = new Astronomy.Observer(numLat, numLon, 0);
             console.log("Evaluating Astronomy for:", { timeString, targetTimeValid: !isNaN(targetTime.getTime()), engineLoaded: isAstronomyLoaded });
             const sunHorizon = Astronomy.Horizon(targetTime, observer, Astronomy.Body.Sun, 'normal');
             isAstroDark = sunHorizon.altitude <= -18;
