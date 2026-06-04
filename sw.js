@@ -1,4 +1,4 @@
-const CACHE_NAME = 'astro-weather-shell-v44';
+const CACHE_NAME = 'astro-weather-shell-v45';
 const API_CACHE_NAME = 'astro-weather-api-v1';
 
 const SHELL_ASSETS = [
@@ -7,8 +7,7 @@ const SHELL_ASSETS = [
     './style.css',
     './app.js',
     './manifest.json',
-    './weatherWorker.js',
-    'https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js'
+    './weatherWorker.js'
 ];
 
 self.addEventListener('install', event => {
@@ -44,7 +43,7 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', (event) => {
-    // Never intercept external API calls (Fixes CORS and "No Data" bug)
+    // Never intercept external API calls
     if (new URL(event.request.url).origin !== self.location.origin) {
         return; 
     }
