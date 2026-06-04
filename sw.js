@@ -1,4 +1,4 @@
-const CACHE_NAME = 'astro-weather-shell-v40';
+const CACHE_NAME = 'astro-weather-shell-v41';
 const API_CACHE_NAME = 'astro-weather-api-v1';
 
 const SHELL_ASSETS = [
@@ -43,30 +43,29 @@ self.addEventListener('activate', event => {
     self.clients.claim();
 });
 
-self.addEventListener('fetch', event => {
-    const url = new URL(event.request.url);
-
+self.addEventListener('fetch', (event) => {
     if (event.request.url.includes('api.open-meteo.com')) {
         event.respondWith(
-            fetch(event.request).catch(error => {
-                console.warn('API network fetch failed. User is likely offline.', error);
-                // Must return a valid Response object to prevent TypeError
-                // Added CORS headers to prevent the browser from blocking this synthetic response
-                return new Response(JSON.stringify({ hourly: {} }), {
-                    status: 503,
-                    statusText: "Service Unavailable",
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*'
-                    }
+            fetch(event.request).catch((error) => {
+                console.warn('Open-Meteo fetch failed, serving safe offline fallback JSON.', error);
+
+                // The body MUST be a valid string, and headers must be a plain object
+                const fallbackData = JSON.stringify({
+                    hourly: { time: [], temperature_2m: [] }
+                });
+
+                return new Response(fallbackData, {
+                    status: 200,
+                    statusText: "OK",
+                    headers: { 'Content-Type': 'application/json' }
                 });
             })
         );
-        return; // Stop execution so it doesn't fall through to the static cache logic
+        return;
     }
 
     // Never intercept external API calls
-    if (url.origin !== self.location.origin) {
+    if (new URL(event.request.url).origin !== self.location.origin) {
         return; // Let the browser handle it normally
     }
 
