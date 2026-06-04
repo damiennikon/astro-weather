@@ -1,4 +1,4 @@
-const CACHE_NAME = 'astro-weather-shell-v39';
+const CACHE_NAME = 'astro-weather-shell-v40';
 const API_CACHE_NAME = 'astro-weather-api-v1';
 
 const SHELL_ASSETS = [
@@ -51,10 +51,14 @@ self.addEventListener('fetch', event => {
             fetch(event.request).catch(error => {
                 console.warn('API network fetch failed. User is likely offline.', error);
                 // Must return a valid Response object to prevent TypeError
+                // Added CORS headers to prevent the browser from blocking this synthetic response
                 return new Response(JSON.stringify({ hourly: {} }), {
                     status: 503,
                     statusText: "Service Unavailable",
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    }
                 });
             })
         );
