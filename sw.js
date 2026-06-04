@@ -1,4 +1,4 @@
-const CACHE_NAME = 'astro-weather-shell-v38';
+const CACHE_NAME = 'astro-weather-shell-v39';
 const API_CACHE_NAME = 'astro-weather-api-v1';
 
 const SHELL_ASSETS = [
@@ -46,52 +46,30 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
 
-    // Completely bypass Service Worker for satellite and proxy requests
-    if (event.request.url.includes('corsproxy') || event.request.url.includes('himawari')) {
-        return;
+    if (event.request.url.includes('api.open-meteo.com')) {
+        event.respondWith(
+            fetch(event.request).catch(error => {
+                console.warn('API network fetch failed. User is likely offline.', error);
+                // Must return a valid Response object to prevent TypeError
+                return new Response(JSON.stringify({ hourly: {} }), {
+                    status: 503,
+                    statusText: "Service Unavailable",
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            })
+        );
+        return; // Stop execution so it doesn't fall through to the static cache logic
     }
 
-    // Network-first strategy for API calls (e.g., Open-Meteo or other external APIs)
-    if (url.origin !== location.origin || url.hostname.includes('open-meteo.com')) {
-        event.respondWith(
-            fetch(event.request)
-                .then(networkResponse => {
-                    // Only cache successful API responses (and strictly exclude opaque responses)
-                    if (networkResponse && networkResponse.status === 200 && networkResponse.type !== 'opaque') {
-                        const clonedResponse = networkResponse.clone();
-                        caches.open(API_CACHE_NAME).then(cache => {
-                            cache.put(event.request, clonedResponse);
-                        });
-                    }
-                    return networkResponse;
-                })
-                .catch(() => {
-                    // Fallback to cache if network fails (offline)
-                    console.log('[Service Worker] Network failed, falling back to cache for API:', event.request.url);
-                    return caches.match(event.request);
-                })
-        );
+    // Never intercept external API calls
+    if (url.origin !== self.location.origin) {
+        return; // Let the browser handle it normally
     }
-    // Cache-first strategy for app shell assets
-    else {
-        event.respondWith(
-            caches.match(event.request)
-                .then(cachedResponse => {
-                    if (cachedResponse) {
-                        return cachedResponse;
-                    }
 
-                    // If not in cache, fetch from network and add to cache
-                    return fetch(event.request).then(networkResponse => {
-                        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-                            const clonedResponse = networkResponse.clone();
-                            caches.open(CACHE_NAME).then(cache => {
-                                cache.put(event.request, clonedResponse);
-                            });
-                        }
-                        return networkResponse;
-                    });
-                })
-        );
-    }
+    // Cache-first for local app files
+    event.respondWith(
+        caches.match(event.request).then(cached => {
+            return cached || fetch(event.request);
+        })
+    );
 });
