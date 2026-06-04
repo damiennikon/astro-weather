@@ -2,16 +2,17 @@
 
 let isAstronomyLoaded = false;
 try {
-    importScripts('./astronomy.browser.min.js');
-    isAstronomyLoaded = true;
+    importScripts('https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js');
+    if (typeof Astronomy !== 'undefined') {
+        isAstronomyLoaded = true;
+        console.log("SUCCESS: Astronomy Engine loaded from CDN.");
+    }
 } catch (e) {
-    console.warn("Astronomy engine import failed, fallback mechanisms will be used.", e);
+    console.error("CRITICAL: Astronomy engine import failed.", e);
 }
-console.log('Astronomy engine loaded:', isAstronomyLoaded);
 
 self.onmessage = async (e) => {
     // 1. Data Ingestion Layer
-    // Using default coordinates for Loganholme for immediate testing
     const lat = e.data?.lat || -27.6833;
     const lon = e.data?.lon || 153.1833;
     const timezone = "auto";
@@ -63,13 +64,10 @@ self.onmessage = async (e) => {
 };
 
 function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) {
-    // Collect all unique timestamps to align the data
     const timeSet = new Set(surfaceData.hourly.time);
-
     const sortedTimes = Array.from(timeSet).sort();
     const nightForecasts = [];
 
-    // Helper for safe averaging: ignores null/undefined/NaN
     const safeAverage = (values) => {
         const validVals = values.filter(v => v !== null && v !== undefined && !isNaN(v));
         if (validVals.length === 0) return null;
@@ -102,16 +100,7 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
         const date = new Date(timeString);
         const hour = date.getHours();
 
-        // Arrays to hold the data points from all available models for this specific hour
-        const cloudLows = [];
-        const cloudMids = [];
-        const cloudHighs = [];
-        const temps = [];
-        const humidities = [];
-        const dewPoints = [];
-        const winds = [];
-        const jetStreams = [];
-        
+        const cloudLows = [], cloudMids = [], cloudHighs = [], temps = [], humidities = [], dewPoints = [], winds = [], jetStreams = [];
         const modelMaxClouds = [];
         const rawModels = {
             icon: { low: 'N/A', mid: 'N/A', high: 'N/A' },
@@ -119,12 +108,11 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             ecmwf: { low: 'N/A', mid: 'N/A', high: 'N/A' }
         };
 
-
         const idxSurface = surfaceData.hourly.time.indexOf(timeString);
         const idxUpper = upperData.hourly.time.indexOf(timeString);
 
         if (idxSurface !== -1) {
-            // ECMWF IFS04
+            // ECMWF
             const ecmwf_cL = surfaceData.hourly.cloud_cover_low_ecmwf_ifs04?.[idxSurface];
             const ecmwf_cM = surfaceData.hourly.cloud_cover_mid_ecmwf_ifs04?.[idxSurface];
             const ecmwf_cH = surfaceData.hourly.cloud_cover_high_ecmwf_ifs04?.[idxSurface];
@@ -136,7 +124,7 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             rawModels.ecmwf = { low: ecmwf_cL ?? 'N/A', mid: ecmwf_cM ?? 'N/A', high: ecmwf_cH ?? 'N/A' };
             if (ecmwf_cL !== undefined && ecmwf_cL !== null) modelMaxClouds.push(Math.max(ecmwf_cL||0, ecmwf_cM||0, ecmwf_cH||0));
 
-            // ICON Global
+            // ICON
             const icon_cL = surfaceData.hourly.cloud_cover_low_icon_global?.[idxSurface];
             const icon_cM = surfaceData.hourly.cloud_cover_mid_icon_global?.[idxSurface];
             const icon_cH = surfaceData.hourly.cloud_cover_high_icon_global?.[idxSurface];
@@ -148,7 +136,7 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             rawModels.icon = { low: icon_cL ?? 'N/A', mid: icon_cM ?? 'N/A', high: icon_cH ?? 'N/A' };
             if (icon_cL !== undefined && icon_cL !== null) modelMaxClouds.push(Math.max(icon_cL||0, icon_cM||0, icon_cH||0));
 
-            // UKMO Seamless
+            // UKMO
             const ukmo_cL = surfaceData.hourly.cloud_cover_low_ukmo_seamless?.[idxSurface];
             const ukmo_cM = surfaceData.hourly.cloud_cover_mid_ukmo_seamless?.[idxSurface];
             const ukmo_cH = surfaceData.hourly.cloud_cover_high_ukmo_seamless?.[idxSurface];
@@ -166,7 +154,6 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             jetStreams.push(upperData.hourly.wind_speed_250hPa_icon_global?.[idxUpper]);
         }
 
-        // Model Confidence Calculation
         let modelAgreement = 'Models Agree';
         let isUncertain = false;
         if (modelMaxClouds.length >= 2) {
@@ -181,7 +168,6 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             }
         }
 
-        // Compute safe averages
         const avgCloudLow = defensiveBlend(
             rawModels.ecmwf.low !== 'N/A' ? rawModels.ecmwf.low : null,
             rawModels.ukmo.low !== 'N/A' ? rawModels.ukmo.low : null,
@@ -215,39 +201,31 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
                 throw new Error('Astronomy engine not loaded');
             }
 
-            // Force lat/lon to valid numbers
             const safeLat = Number(lat) || -27.6833;
             const safeLon = Number(lon) || 153.1833;
             const observer = new Astronomy.Observer(safeLat, safeLon, 0);
 
             // Append Z to force unambiguous UTC interpretation
-            // Open-Meteo returns "2026-06-10T18:00" (16 chars) with no timezone suffix
-            const utcTimestamp = timeString.length === 16
-                ? timeString + ':00Z'
-                : timeString + 'Z';
+            const utcTimestamp = timeString.length === 16 ? timeString + ':00Z' : timeString + 'Z';
             const utcTimeMs = new Date(utcTimestamp).getTime();
 
-            // Force offset to valid number, fallback to Brisbane UTC+10
-            const safeOffsetSeconds = (typeof utcOffsetSeconds === 'number'
-                && !isNaN(utcOffsetSeconds)) ? utcOffsetSeconds : 36000;
+            const safeOffsetSeconds = (typeof utcOffsetSeconds === 'number' && !isNaN(utcOffsetSeconds)) ? utcOffsetSeconds : 36000;
 
             // Convert local time to true UTC by subtracting the location offset
             const targetTime = new Date(utcTimeMs - (safeOffsetSeconds * 1000));
 
-            // Final guard before passing to Astronomy Engine
             if (isNaN(targetTime.getTime())) {
                 throw new Error(`Invalid Date: ${timeString}, offset: ${safeOffsetSeconds}`);
             }
 
-            console.log(`Astronomy OK: ${timeString} → UTC ${targetTime.toISOString()}`);
-
-            // Sun altitude → astronomical darkness
+            // Sun altitude
             const sunHorizon = Astronomy.Horizon(targetTime, observer, Astronomy.Body.Sun, 'normal');
             isAstroDark = sunHorizon.altitude <= -18;
 
-            // Moon illumination
+            // Moon illumination (Property fallback fix)
             const moonIllumData = Astronomy.Illumination(Astronomy.Body.Moon, targetTime);
-            moonIllum = moonIllumData.disc_light_fraction;
+            moonIllum = moonIllumData.disc_light_fraction ?? moonIllumData.phase_fraction ?? 0;
+            console.log('Moon illum:', moonIllum, 'from object:', JSON.stringify(moonIllumData));
 
             // Moon altitude
             const moonHorizon = Astronomy.Horizon(targetTime, observer, Astronomy.Body.Moon, 'normal');
@@ -278,7 +256,6 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
         let verdictTier = "Unknown";
         let vetoReasonStr = null;
 
-        // 1. Data Availability Check
         if (cL === null || cM === null || cH === null || temp === null || dewPoint === null || wind === null || humidity === null) {
             vetoReasons.push("Data Unavailable");
             score = 0;
@@ -290,7 +267,6 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             const cloudScore = getCloudScore(maxCloud);
             let moonScore = getMoonScore(moonIllum, moonAltDeg);
             
-            // Low-Altitude Moon Buffer
             if (moonAltDeg > 0 && moonAltDeg <= 10) {
                 const penalty = 100 - moonScore;
                 moonScore = 100 - (penalty * 0.5);
@@ -319,22 +295,13 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
                 vetoReasonStr = vetoReasons.join(", ");
             }
 
-            if (score >= 85) {
-                verdictTier = "GREAT";
-            } else if (score >= 65) {
-                verdictTier = "GOOD";
-            } else if (score >= 45) {
-                verdictTier = "FAIR";
-            } else if (score >= 25) {
-                verdictTier = "POOR";
-            } else {
-                verdictTier = "VERY POOR";
-            }
+            if (score >= 85) verdictTier = "GREAT";
+            else if (score >= 65) verdictTier = "GOOD";
+            else if (score >= 45) verdictTier = "FAIR";
+            else if (score >= 25) verdictTier = "POOR";
+            else verdictTier = "VERY POOR";
         }
 
-        console.log("Day Calculation:", timeString, "Raw Score:", score);
-
-        // Output Payload Object
         nightForecasts.push({
             timestamp: timeString,
             hour: hour,
@@ -351,7 +318,6 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             vetoReason: vetoReasonStr,
             moonIllumination: moonIllum,
             isMoonAboveHorizon: isMoonAboveHorizon,
-
             isAstroDark: isAstroDark,
             modelAgreement: modelAgreement,
             isUncertain: isUncertain,
@@ -360,8 +326,6 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
         });
     }
 
-    // --- CALCULATE OPTIMAL 3-HOUR WINDOW ---
-    // Group by night (shift hours < 12 to previous day)
     const nights = {};
     nightForecasts.forEach(item => {
         if (!item.timestamp) return;
@@ -373,7 +337,6 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             nightDate = new Date(Date.UTC(year, month - 1, day - 1));
         }
         const nightDateStr = nightDate.toISOString().split('T')[0];
-        console.log(`Grouping key for hour ${hour} (${item.timestamp}):`, nightDateStr);
         if (!nights[nightDateStr]) nights[nightDateStr] = [];
         nights[nightDateStr].push(item);
     });
@@ -382,12 +345,9 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
         let bestWindow = null;
         let highestAvgScore = -1;
 
-        // Ensure sorted chronologically
         hoursData.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
         const darkHours = hoursData.filter(h => h.isAstroDark && h.score != null);
 
-        // Check window sizes from 3 down to 1
         for (let size = 3; size >= 1; size--) {
             if (darkHours.length < size) continue;
             
@@ -434,10 +394,9 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
                     }
                 }
             }
-            if (foundAtThisSize) break; // Stop checking smaller sizes if we found a contiguous block
+            if (foundAtThisSize) break; 
         }
         
-        // Attach best window to the items of that night so UI can access it safely after filtering
         if (bestWindow) {
             const bw = {
                 text: `${bestWindow.startTimeStr} - ${bestWindow.endTimeFormatted}`,
