@@ -1,5 +1,9 @@
 // weatherWorker.js
 
+// DEEPSEEK FIX: Trick browser-only scripts into running safely inside a Web Worker
+self.window = self;
+self.document = { hidden: false };
+
 let isAstronomyLoaded = false;
 try {
     importScripts('https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js');
@@ -12,12 +16,10 @@ try {
 }
 
 self.onmessage = async (e) => {
-    // 1. Data Ingestion Layer
     const lat = e.data?.lat || -27.6833;
     const lon = e.data?.lon || 153.1833;
     const timezone = "auto";
 
-    // 2. Dual-Stream Fetching from multiple models
     const surfaceModels = "ecmwf_ifs04,icon_global,ukmo_seamless";
     const surfaceParams = "cloud_cover_low,cloud_cover_mid,cloud_cover_high,temperature_2m,relative_humidity_2m,dew_point_2m,wind_speed_10m";
     const surfaceUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=${surfaceParams}&models=${surfaceModels}&timezone=${timezone}`;
@@ -43,12 +45,9 @@ self.onmessage = async (e) => {
             && !isNaN(surfaceData.utc_offset_seconds)) 
             ? surfaceData.utc_offset_seconds 
             : 36000;
-        console.log('UTC offset extracted:', utcOffsetSeconds, typeof utcOffsetSeconds);
-
-        // 3. Data Alignment & Fusion
+        
         const processedForecast = processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds);
         
-        // 4. Send the payload back to the UI
         self.postMessage({
             status: "success",
             forecast: processedForecast,
@@ -112,7 +111,6 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
         const idxUpper = upperData.hourly.time.indexOf(timeString);
 
         if (idxSurface !== -1) {
-            // ECMWF
             const ecmwf_cL = surfaceData.hourly.cloud_cover_low_ecmwf_ifs04?.[idxSurface];
             const ecmwf_cM = surfaceData.hourly.cloud_cover_mid_ecmwf_ifs04?.[idxSurface];
             const ecmwf_cH = surfaceData.hourly.cloud_cover_high_ecmwf_ifs04?.[idxSurface];
@@ -124,7 +122,6 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             rawModels.ecmwf = { low: ecmwf_cL ?? 'N/A', mid: ecmwf_cM ?? 'N/A', high: ecmwf_cH ?? 'N/A' };
             if (ecmwf_cL !== undefined && ecmwf_cL !== null) modelMaxClouds.push(Math.max(ecmwf_cL||0, ecmwf_cM||0, ecmwf_cH||0));
 
-            // ICON
             const icon_cL = surfaceData.hourly.cloud_cover_low_icon_global?.[idxSurface];
             const icon_cM = surfaceData.hourly.cloud_cover_mid_icon_global?.[idxSurface];
             const icon_cH = surfaceData.hourly.cloud_cover_high_icon_global?.[idxSurface];
@@ -136,7 +133,6 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             rawModels.icon = { low: icon_cL ?? 'N/A', mid: icon_cM ?? 'N/A', high: icon_cH ?? 'N/A' };
             if (icon_cL !== undefined && icon_cL !== null) modelMaxClouds.push(Math.max(icon_cL||0, icon_cM||0, icon_cH||0));
 
-            // UKMO
             const ukmo_cL = surfaceData.hourly.cloud_cover_low_ukmo_seamless?.[idxSurface];
             const ukmo_cM = surfaceData.hourly.cloud_cover_mid_ukmo_seamless?.[idxSurface];
             const ukmo_cH = surfaceData.hourly.cloud_cover_high_ukmo_seamless?.[idxSurface];
@@ -189,7 +185,6 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
         const avgWind = safeAverage(winds);
         const avgJetStream = safeAverage(jetStreams);
 
-        // --- ASTRONOMY ENGINE ---
         let isAstroDark = false;
         let moonIllum = 0;
         let moonAltDeg = -90;
@@ -205,35 +200,33 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             const safeLon = Number(lon) || 153.1833;
             const observer = new Astronomy.Observer(safeLat, safeLon, 0);
 
-            // Append Z to force unambiguous UTC interpretation
             const utcTimestamp = timeString.length === 16 ? timeString + ':00Z' : timeString + 'Z';
             const utcTimeMs = new Date(utcTimestamp).getTime();
 
             const safeOffsetSeconds = (typeof utcOffsetSeconds === 'number' && !isNaN(utcOffsetSeconds)) ? utcOffsetSeconds : 36000;
-
-            // Convert local time to true UTC by subtracting the location offset
             const targetTime = new Date(utcTimeMs - (safeOffsetSeconds * 1000));
 
             if (isNaN(targetTime.getTime())) {
-                throw new Error(`Invalid Date: ${timeString}, offset: ${safeOffsetSeconds}`);
+                throw new Error(`Invalid Date: ${timeString}`);
             }
 
-            // Sun altitude
             const sunHorizon = Astronomy.Horizon(targetTime, observer, Astronomy.Body.Sun, 'normal');
             isAstroDark = sunHorizon.altitude <= -18;
 
-            // Moon illumination (Property fallback fix)
-            const moonIllumData = Astronomy.Illumination(Astronomy.Body.Moon, targetTime);
-            moonIllum = moonIllumData.disc_light_fraction ?? moonIllumData.phase_fraction ?? 0;
-            console.log('Moon illum:', moonIllum, 'from object:', JSON.stringify(moonIllumData));
+            try {
+                const moonIllumData = Astronomy.Illumination(Astronomy.Body.Moon, targetTime);
+                moonIllum = moonIllumData.fraction ?? moonIllumData.phase_fraction ?? 0;
+            } catch (illumErr) {
+                const phaseDeg = Astronomy.MoonPhase(targetTime);
+                const phaseRad = phaseDeg * (Math.PI / 180);
+                moonIllum = 0.5 * (1 - Math.cos(phaseRad));
+            }
 
-            // Moon altitude
             const moonHorizon = Astronomy.Horizon(targetTime, observer, Astronomy.Body.Moon, 'normal');
             moonAltDeg = moonHorizon.altitude;
             isMoonAboveHorizon = moonAltDeg > 0;
 
         } catch (error) {
-            console.error("Astronomy Engine Crash:", error.message);
             isAstroDark = true;
             moonIllum = 0;
             moonAltDeg = -90;
@@ -241,7 +234,6 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             astronomyFailed = true;
         }
 
-        // --- SCORING ENGINE ---
         let score = 0;
         const vetoReasons = [];
         const cL = avgCloudLow !== null ? Math.round(avgCloudLow) : null;
