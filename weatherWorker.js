@@ -4,10 +4,10 @@ let isAstronomyLoaded = false;
 try {
     importScripts('./astronomy.browser.min.js');
     isAstronomyLoaded = true;
-    console.log("Astronomy engine loaded successfully.");
 } catch (e) {
     console.warn("Astronomy engine import failed, fallback mechanisms will be used.", e);
 }
+console.log('Astronomy engine loaded:', isAstronomyLoaded);
 
 self.onmessage = async (e) => {
     // 1. Data Ingestion Layer
@@ -38,12 +38,11 @@ self.onmessage = async (e) => {
             throw new Error("Returned empty hourly data.");
         }
 
-        const utc_offset_seconds = surfaceData.utc_offset_seconds;
-        console.log('UTC offset extracted:', utc_offset_seconds, typeof utc_offset_seconds);
-        
-        const safeOffsetSeconds = (typeof utc_offset_seconds === 'number' && !isNaN(utc_offset_seconds)) ? utc_offset_seconds : 36000;
-            
-        const utcOffsetSeconds = safeOffsetSeconds;
+        const utcOffsetSeconds = (typeof surfaceData.utc_offset_seconds === 'number' 
+            && !isNaN(surfaceData.utc_offset_seconds)) 
+            ? surfaceData.utc_offset_seconds 
+            : 36000;
+        console.log('UTC offset extracted:', utcOffsetSeconds, typeof utcOffsetSeconds);
 
         // 3. Data Alignment & Fusion
         const processedForecast = processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds);
@@ -212,38 +211,51 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
         let astronomyFailed = false;
 
         try {
-            if (!isAstronomyLoaded || typeof Astronomy === 'undefined') throw new Error('Astronomy engine not loaded');
-            
-            // Force lat/lon to Number
-            const numLat = Number(lat);
-            const numLon = Number(lon);
-            
-            // Append 'Z' to force JS engine to interpret it as unambiguous UTC
-            const utcTimestamp = timeString.length === 16 ? timeString + ':00Z' : timeString + 'Z';
-            const utcDate = new Date(utcTimestamp);
-            
-            // Calculate the absolute targetTime by subtracting safeOffsetSeconds * 1000 from the UTC time
-            const safeOffsetSeconds = typeof utcOffsetSeconds === 'number' && !isNaN(utcOffsetSeconds) ? utcOffsetSeconds : 36000;
-            const targetTime = new Date(utcDate.getTime() - (safeOffsetSeconds * 1000));
-            
-            if (isNaN(targetTime.getTime())) {
-                throw new Error(`Invalid targetTime constructed from ${timeString}`);
+            if (!isAstronomyLoaded || typeof Astronomy === 'undefined') {
+                throw new Error('Astronomy engine not loaded');
             }
-            
-            const observer = new Astronomy.Observer(numLat, numLon, 0);
-            console.log("Evaluating Astronomy for:", { timeString, targetTimeValid: !isNaN(targetTime.getTime()), engineLoaded: isAstronomyLoaded });
+
+            // Force lat/lon to valid numbers
+            const safeLat = Number(lat) || -27.6833;
+            const safeLon = Number(lon) || 153.1833;
+            const observer = new Astronomy.Observer(safeLat, safeLon, 0);
+
+            // Append Z to force unambiguous UTC interpretation
+            // Open-Meteo returns "2026-06-10T18:00" (16 chars) with no timezone suffix
+            const utcTimestamp = timeString.length === 16
+                ? timeString + ':00Z'
+                : timeString + 'Z';
+            const utcTimeMs = new Date(utcTimestamp).getTime();
+
+            // Force offset to valid number, fallback to Brisbane UTC+10
+            const safeOffsetSeconds = (typeof utcOffsetSeconds === 'number'
+                && !isNaN(utcOffsetSeconds)) ? utcOffsetSeconds : 36000;
+
+            // Convert local time to true UTC by subtracting the location offset
+            const targetTime = new Date(utcTimeMs - (safeOffsetSeconds * 1000));
+
+            // Final guard before passing to Astronomy Engine
+            if (isNaN(targetTime.getTime())) {
+                throw new Error(`Invalid Date: ${timeString}, offset: ${safeOffsetSeconds}`);
+            }
+
+            console.log(`Astronomy OK: ${timeString} → UTC ${targetTime.toISOString()}`);
+
+            // Sun altitude → astronomical darkness
             const sunHorizon = Astronomy.Horizon(targetTime, observer, Astronomy.Body.Sun, 'normal');
             isAstroDark = sunHorizon.altitude <= -18;
 
+            // Moon illumination
             const moonIllumData = Astronomy.Illumination(Astronomy.Body.Moon, targetTime);
             moonIllum = moonIllumData.phase_fraction;
 
+            // Moon altitude
             const moonHorizon = Astronomy.Horizon(targetTime, observer, Astronomy.Body.Moon, 'normal');
             moonAltDeg = moonHorizon.altitude;
             isMoonAboveHorizon = moonAltDeg > 0;
-            
+
         } catch (error) {
-            console.error("Astronomy Engine failed to load or calculate:", error);
+            console.error("Astronomy Engine Crash:", error.message);
             isAstroDark = true;
             moonIllum = 0;
             moonAltDeg = -90;
