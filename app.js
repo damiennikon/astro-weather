@@ -729,7 +729,6 @@ function initLocationUI() {
         }
     });
 
-    // Added comprehensive try/catch & timeout resets for location hangs
     locateBtn.addEventListener('click', () => {
         if (!navigator.geolocation) {
             console.warn('Location not found or fetch failed: Geolocation is not supported by your browser.');
@@ -817,35 +816,46 @@ window.closeSatelliteModal = function(event, force = false) {
 };
 
 function initInfoModal() {
+    if (!document.getElementById('info-btn')) {
+        const searchContainer = document.querySelector('.search-container');
+        if (searchContainer) {
+            searchContainer.insertAdjacentHTML('beforebegin', `
+                <div style="text-align: center; margin-bottom: 12px;">
+                    <button id="info-btn" style="background: transparent; border: 1px solid #ff9800; color: #ff9800; border-radius: 50%; width: 26px; height: 26px; font-size: 14px; font-family: monospace; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0;" title="How We Forecast">i</button>
+                </div>
+            `);
+        }
+    }
+
     const modalHtml = `
         <div id="info-modal" class="modal-overlay" onclick="closeInfoModal(event)">
-            <div class="modal-content" style="max-width: 500px; text-align: left;" onclick="event.stopPropagation()">
+            <div class="modal-content" style="max-width: 550px; text-align: left;" onclick="event.stopPropagation()">
                 <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 15px;">
-                    <h2 style="margin: 0; color: #ff9800;">How We Forecast</h2>
+                    <h2 style="margin: 0; color: #ff9800;">Behind the Code</h2>
                     <button class="close-btn" style="background: none; border: none; color: #fff; font-size: 1.5rem; cursor: pointer;" onclick="closeInfoModal(null, true)">&times;</button>
                 </div>
-                <div class="info-modal-body" style="line-height: 1.5; font-size: 0.95rem;">
-                    <p>Astrophotography requires much stricter tolerances than a standard weather app. We use a <strong>Defensive Blending Algorithm</strong> that aggregates and weights data from the world's top meteorological agencies.</p>
+                
+                <div class="info-modal-body" style="line-height: 1.6; font-size: 0.95rem; color: #e0e0e0; max-height: 70vh; overflow-y: auto; padding-right: 10px;">
                     
-                    <h3 style="margin-top: 20px; color: #aaa;">Current Model Weighting:</h3>
-                    <ul style="padding-left: 20px; margin-bottom: 20px;">
-                        <li style="margin-bottom: 8px;"><strong>ECMWF (European): 50%</strong><br>Widely regarded as the most accurate global weather model.</li>
-                        <li style="margin-bottom: 8px;"><strong>UKMO (UK Met Office): 30%</strong><br>Highly reliable consensus model for mid-range forecasting.</li>
-                        <li style="margin-bottom: 8px;"><strong>ICON (German DWD): 20%</strong><br>Fast-updating model excellent for surface-level dynamics.</li>
+                    <h3 style="margin-top: 0; color: #fff;">1. About the App</h3>
+                    <p>Astrophotography requires much stricter tolerances than your standard daily weather app. We use a custom <strong>Defensive Blending Algorithm</strong> that aggregates and dynamically weights raw data from the world's top meteorological agencies to give you a highly specialized dark-sky forecast.</p>
+
+                    <h3 style="margin-top: 25px; color: #fff;">2. How We Forecast</h3>
+                    <p>Our scoring engine calculates a 0-100 rating for every single hour. It strictly penalizes high cloud cover and bright lunar illumination. We also analyze the dew point spread, humidity, and upper-level winds to ensure your optics stay dry and your seeing conditions remain stable.</p>
+                    <ul style="padding-left: 20px; margin-bottom: 20px; color: #bbb;">
+                        <li style="margin-bottom: 8px;"><strong>ECMWF (European): 50% Weight</strong><br>Widely regarded as the most accurate global weather model.</li>
+                        <li style="margin-bottom: 8px;"><strong>UKMO (UK Met Office): 30% Weight</strong><br>A highly reliable consensus model.</li>
+                        <li style="margin-bottom: 8px;"><strong>ICON (German DWD): 20% Weight</strong><br>A fast-updating model excellent for surface-level dynamics.</li>
                     </ul>
 
-                    <div style="background-color: rgba(255, 152, 0, 0.1); border-left: 4px solid #ff9800; padding: 10px; margin-bottom: 20px;">
-                        <strong style="color: #ff9800;">Why do some models show "N/A"?</strong><br>
-                        The European model (ECMWF) runs massive global simulations twice a day. During its update windows (typically late afternoon AEST), fresh data is still being processed. When this happens, our app safely excludes it and dynamically re-weights the active ICON and UKMO models so you still get a highly accurate forecast.
-                    </div>
+                    <h3 style="margin-top: 25px; color: #fff;">3. Why UKMO over BOM (ACCESS-G)?</h3>
+                    <p>The Australian Bureau of Meteorology's global model (ACCESS-G) is temporarily offline at our source provider, but it will automatically re-integrate into our blend once stable.</p>
+                    <p>In its absence, we lean heavily on the <strong>UKMO</strong> model. Why? Because the UK Met Office Unified Model actually serves as the foundational core for BOM's own ACCESS models! By blending UKMO with the world-leading ECMWF, we maintain incredibly accurate, world-class forecasts for Australian topography even while the local feed is down.</p>
 
-                    <div style="background-color: rgba(255, 152, 0, 0.1); border-left: 4px solid #ff9800; padding: 10px; margin-bottom: 20px;">
-                        <strong style="color: #ff9800;">BOM (ACCESS-G) Status:</strong><br>
-                        The Australian Bureau of Meteorology's global model is temporarily offline at our source provider. It will automatically re-integrate into our blend once stable.
-                    </div>
-
-                    <h3 style="margin-top: 20px; color: #aaa;">The Scoring Engine</h3>
-                    <p>Our 0-100 score strictly penalizes high cloud cover and lunar illumination. We also analyze the dew point spread, humidity, and upper-level jet streams to ensure your optics stay dry and your seeing conditions are stable.</p>
+                    <h3 style="margin-top: 25px; color: #fff;">4. The Reality of Weather Forecasting</h3>
+                    <p>It’s an open secret that standard weather apps often get it wrong because they generalize broad data for the general public. We built this app to cut through the noise and give you the raw, unfiltered atmospheric truth.</p>
+                    <p>However, forecasting the atmosphere is ultimately an exercise in chaos theory. Sometimes the global models disagree, or local micro-climates shift unexpectedly. We try our absolute hardest not to get it wrong, but nature always has the final say, and sometimes a "Great" night just doesn't pan out. That is exactly why we let you click on any hour to view our <strong>Model Confidence</strong>—so you know when to trust the numbers, and when to expect the unexpected.</p>
+                    
                 </div>
             </div>
         </div>
