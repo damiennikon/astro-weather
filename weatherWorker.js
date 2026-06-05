@@ -20,7 +20,8 @@ self.onmessage = async (e) => {
     const timezone = "auto";
 
     const surfaceModels = "ecmwf_ifs04,icon_global,ukmo_seamless";
-    const surfaceParams = "cloud_cover_low,cloud_cover_mid,cloud_cover_high,temperature_2m,relative_humidity_2m,dew_point_2m,wind_speed_10m";
+    // ADDED: cloud_cover to the beginning of the string to fetch the total percentage
+    const surfaceParams = "cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,temperature_2m,relative_humidity_2m,dew_point_2m,wind_speed_10m";
     const surfaceUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=${surfaceParams}&models=${surfaceModels}&timezone=${timezone}`;
 
     const upperModels = "ecmwf_ifs04,icon_global";
@@ -108,9 +109,19 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
         const idxUpper = upperData.hourly.time.indexOf(timeString);
 
         if (idxSurface !== -1) {
-            const ecmwf_cL = surfaceData.hourly.cloud_cover_low_ecmwf_ifs04?.[idxSurface];
-            const ecmwf_cM = surfaceData.hourly.cloud_cover_mid_ecmwf_ifs04?.[idxSurface];
-            const ecmwf_cH = surfaceData.hourly.cloud_cover_high_ecmwf_ifs04?.[idxSurface];
+            // ECMWF
+            const ecmwf_cTotal = surfaceData.hourly.cloud_cover_ecmwf_ifs04?.[idxSurface];
+            let ecmwf_cL = surfaceData.hourly.cloud_cover_low_ecmwf_ifs04?.[idxSurface];
+            let ecmwf_cM = surfaceData.hourly.cloud_cover_mid_ecmwf_ifs04?.[idxSurface];
+            let ecmwf_cH = surfaceData.hourly.cloud_cover_high_ecmwf_ifs04?.[idxSurface];
+
+            // Fallback: If ECMWF doesn't provide split layers, use its Total Cloud Cover
+            if (ecmwf_cL == null && ecmwf_cTotal != null) {
+                ecmwf_cL = ecmwf_cTotal;
+                ecmwf_cM = ecmwf_cTotal;
+                ecmwf_cH = ecmwf_cTotal;
+            }
+
             cloudLows.push(ecmwf_cL); cloudMids.push(ecmwf_cM); cloudHighs.push(ecmwf_cH);
             temps.push(surfaceData.hourly.temperature_2m_ecmwf_ifs04?.[idxSurface]);
             humidities.push(surfaceData.hourly.relative_humidity_2m_ecmwf_ifs04?.[idxSurface]);
@@ -119,6 +130,7 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             rawModels.ecmwf = { low: ecmwf_cL ?? 'N/A', mid: ecmwf_cM ?? 'N/A', high: ecmwf_cH ?? 'N/A' };
             if (ecmwf_cL !== undefined && ecmwf_cL !== null) modelMaxClouds.push(Math.max(ecmwf_cL||0, ecmwf_cM||0, ecmwf_cH||0));
 
+            // ICON
             const icon_cL = surfaceData.hourly.cloud_cover_low_icon_global?.[idxSurface];
             const icon_cM = surfaceData.hourly.cloud_cover_mid_icon_global?.[idxSurface];
             const icon_cH = surfaceData.hourly.cloud_cover_high_icon_global?.[idxSurface];
@@ -130,6 +142,7 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             rawModels.icon = { low: icon_cL ?? 'N/A', mid: icon_cM ?? 'N/A', high: icon_cH ?? 'N/A' };
             if (icon_cL !== undefined && icon_cL !== null) modelMaxClouds.push(Math.max(icon_cL||0, icon_cM||0, icon_cH||0));
 
+            // UKMO
             const ukmo_cL = surfaceData.hourly.cloud_cover_low_ukmo_seamless?.[idxSurface];
             const ukmo_cM = surfaceData.hourly.cloud_cover_mid_ukmo_seamless?.[idxSurface];
             const ukmo_cH = surfaceData.hourly.cloud_cover_high_ukmo_seamless?.[idxSurface];
@@ -176,7 +189,6 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
         let isMoonAboveHorizon = false;
         let astronomyFailed = false;
 
-        // 1. Bulletproof Date Parsing
         let targetTime;
         try {
             const utcTimestamp = timeString.length === 16 ? timeString + ':00Z' : timeString + 'Z';
@@ -201,19 +213,13 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             const safeLon = Number(lon) || 153.1833;
             const observer = new Astronomy.Observer(safeLat, safeLon, 0);
 
-            // --- THE SMOKING GUN FIX ---
-            // Pass RA and DEC numbers to Horizon, instead of the body string directly
-
-            // Sun altitude
             const sunEquator = Astronomy.Equator(Astronomy.Body.Sun, targetTime, observer, true, true);
             const sunHorizon = Astronomy.Horizon(targetTime, observer, sunEquator.ra, sunEquator.dec, 'normal');
             isAstroDark = sunHorizon.altitude <= -18;
 
-            // Moon illumination 
             const moonIllumData = Astronomy.Illumination(Astronomy.Body.Moon, targetTime);
             moonIllum = moonIllumData.phase_fraction;
 
-            // Moon altitude
             const moonEquator = Astronomy.Equator(Astronomy.Body.Moon, targetTime, observer, true, true);
             const moonHorizon = Astronomy.Horizon(targetTime, observer, moonEquator.ra, moonEquator.dec, 'normal');
             moonAltDeg = moonHorizon.altitude;
@@ -222,15 +228,12 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
             astronomyFailed = false;
 
         } catch (error) {
-            // --- THE PURE MATH FALLBACK ---
-            // If the engine throws an error or gets blocked, this mathematical safety net will hide the banner and calculate it natively.
             console.error("Astronomy Engine Error:", error.message || error);
             
             try {
                 const safeLat = Number(lat) || -27.6833;
                 const safeLon = Number(lon) || 153.1833;
 
-                // 1. Approximate Sun Altitude for true darkness
                 const dayOfYear = Math.floor((targetTime - new Date(targetTime.getUTCFullYear(), 0, 0)) / 86400000);
                 const dec = 23.45 * Math.sin((284 + dayOfYear) * (2 * Math.PI / 365)) * (Math.PI / 180);
                 const latRad = safeLat * (Math.PI / 180);
@@ -240,18 +243,15 @@ function processAndFuseData(surfaceData, upperData, lat, lon, utcOffsetSeconds) 
                 const sunAlt = sunAltRad * (180 / Math.PI);
                 isAstroDark = sunAlt <= -18;
 
-                // 2. Approximate Moon Illumination 
-                const lp = 2551442.8769; // exact length of lunar cycle in seconds
+                const lp = 2551442.8769; 
                 const now = targetTime.getTime() / 1000;
                 const knownNewMoon = new Date('2024-01-11T11:57:00Z').getTime() / 1000;
                 const phase = ((now - knownNewMoon) % lp) / lp;
                 moonIllum = 0.5 * (1 - Math.cos(phase * 2 * Math.PI));
 
-                // 3. Prevent Score Penalties
                 moonAltDeg = 45; 
                 isMoonAboveHorizon = true;
 
-                // CRITICAL: We successfully generated the data, hide the orange banner!
                 astronomyFailed = false; 
             } catch (fallbackError) {
                 isAstroDark = true;
