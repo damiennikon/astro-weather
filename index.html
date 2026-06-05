@@ -7,7 +7,6 @@
     <meta name="description" content="High-accuracy astrophotography weather forecasts.">
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
-    <!-- Placeholders for standard PWA icons -->
     <link rel="icon" href="icon-192x192.png" type="image/png">
     <link rel="apple-touch-icon" href="icon-192x192.png">
     <meta name="theme-color" content="#0a0000">
@@ -19,6 +18,9 @@
     </header>
     
     <main>
+        <div style="text-align: center; margin-bottom: 12px;">
+            <button id="info-btn" style="background: transparent; border: 1px solid var(--accent-gold, #ff9800); color: var(--accent-gold, #ff9800); border-radius: 50%; width: 26px; height: 26px; font-size: 14px; font-family: monospace; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0;" title="How We Forecast">i</button>
+        </div>
         <div class="search-container">
             <div class="search-wrapper">
                 <input type="text" id="location-search" placeholder="Search dark sky site (e.g., Wivenhoe)...">
@@ -32,7 +34,6 @@
             </div>
         </div>
 
-        <!-- Container for parsed weather data -->
         <div id="forecast-container">
             <div class="empty-state-default">
                 <div class="empty-icon">🌙</div>
@@ -41,7 +42,6 @@
         </div>
     </main>
 
-    <!-- Satellite Modal -->
     <div id="satellite-modal" class="modal-overlay" onclick="closeSatelliteModal(event)">
         <div class="modal-content satellite-modal-content" onclick="event.stopPropagation()">
             <div class="modal-header">
@@ -54,7 +54,6 @@
         </div>
     </div>
 
-    <!-- Update Banner -->
     <div id="update-banner" class="update-banner hidden">
         <span>New version available!</span>
         <button id="update-btn">Update</button>
