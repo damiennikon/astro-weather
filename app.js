@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initConfidenceModal();
     initSatelliteModal();
     initRedMode();
+    initInfoModal();
 });
 
 function initConfidenceModal() {
@@ -811,6 +812,58 @@ function initSatelliteModal() {
 window.closeSatelliteModal = function(event, force = false) {
     if (force || (event && event.target && event.target.id === 'satellite-modal')) {
         document.getElementById('satellite-modal').classList.remove('active');
+        document.body.style.overflow = '';
+    }
+};
+
+function initInfoModal() {
+    const modalHtml = `
+        <div id="info-modal" class="modal-overlay" onclick="closeInfoModal(event)">
+            <div class="modal-content" style="max-width: 500px; text-align: left;" onclick="event.stopPropagation()">
+                <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 15px;">
+                    <h2 style="margin: 0; color: #ff9800;">How We Forecast</h2>
+                    <button class="close-btn" style="background: none; border: none; color: #fff; font-size: 1.5rem; cursor: pointer;" onclick="closeInfoModal(null, true)">&times;</button>
+                </div>
+                <div class="info-modal-body" style="line-height: 1.5; font-size: 0.95rem;">
+                    <p>Astrophotography requires much stricter tolerances than a standard weather app. We use a <strong>Defensive Blending Algorithm</strong> that aggregates and weights data from the world's top meteorological agencies.</p>
+                    
+                    <h3 style="margin-top: 20px; color: #aaa;">Current Model Weighting:</h3>
+                    <ul style="padding-left: 20px; margin-bottom: 20px;">
+                        <li style="margin-bottom: 8px;"><strong>ECMWF (European): 50%</strong><br>Widely regarded as the most accurate global weather model.</li>
+                        <li style="margin-bottom: 8px;"><strong>UKMO (UK Met Office): 30%</strong><br>Highly reliable consensus model for mid-range forecasting.</li>
+                        <li style="margin-bottom: 8px;"><strong>ICON (German DWD): 20%</strong><br>Fast-updating model excellent for surface-level dynamics.</li>
+                    </ul>
+
+                    <div style="background-color: rgba(255, 152, 0, 0.1); border-left: 4px solid #ff9800; padding: 10px; margin-bottom: 20px;">
+                        <strong style="color: #ff9800;">Why do some models show "N/A"?</strong><br>
+                        The European model (ECMWF) runs massive global simulations twice a day. During its update windows (typically late afternoon AEST), fresh data is still being processed. When this happens, our app safely excludes it and dynamically re-weights the active ICON and UKMO models so you still get a highly accurate forecast.
+                    </div>
+
+                    <div style="background-color: rgba(255, 152, 0, 0.1); border-left: 4px solid #ff9800; padding: 10px; margin-bottom: 20px;">
+                        <strong style="color: #ff9800;">BOM (ACCESS-G) Status:</strong><br>
+                        The Australian Bureau of Meteorology's global model is temporarily offline at our source provider. It will automatically re-integrate into our blend once stable.
+                    </div>
+
+                    <h3 style="margin-top: 20px; color: #aaa;">The Scoring Engine</h3>
+                    <p>Our 0-100 score strictly penalizes high cloud cover and lunar illumination. We also analyze the dew point spread, humidity, and upper-level jet streams to ensure your optics stay dry and your seeing conditions are stable.</p>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    const infoBtn = document.getElementById('info-btn');
+    if (infoBtn) {
+        infoBtn.addEventListener('click', () => {
+            document.getElementById('info-modal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+    }
+}
+
+window.closeInfoModal = function(event, force = false) {
+    if (force || (event && event.target && event.target.id === 'info-modal')) {
+        document.getElementById('info-modal').classList.remove('active');
         document.body.style.overflow = '';
     }
 };
