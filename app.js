@@ -838,7 +838,7 @@ function initInfoModal() {
                 <div class="info-modal-body" style="line-height: 1.6; font-size: 0.95rem; color: #e0e0e0; max-height: 70vh; overflow-y: auto; padding-right: 10px;">
                     
                     <h3 style="margin-top: 0; color: #fff;">1. About the App</h3>
-                    <p>Astrophotography requires much stricter tolerances than your standard daily weather app. We use a custom <strong>Defensive Blending Algorithm</strong> that aggregates and dynamically weights raw data from the world's top meteorological agencies to give you a highly specialized dark-sky forecast.</p>
+                    <p>We built Astro Weather because we know the absolute heartbreak of packing up heavy gear, driving hours to a dark sky site, and getting clouded out just because a generic weather app said it would be 'clear'. Standard apps simply aren't built for the strict tolerances of astrophotography. Our goal is simple: to give you the most honest, highly specialized dark-sky forecast possible so you can plan your imaging sessions with confidence. To achieve this, we cut through the noise using a custom <strong>Defensive Blending Algorithm</strong> that pulls and aggregates raw data straight from the world's top meteorological agencies.</p>
 
                     <h3 style="margin-top: 25px; color: #fff;">2. How We Forecast</h3>
                     <p>Our scoring engine calculates a 0-100 rating for every single hour. It strictly penalizes high cloud cover and bright lunar illumination. We also analyze the dew point spread, humidity, and upper-level winds to ensure your optics stay dry and your seeing conditions remain stable.</p>
