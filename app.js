@@ -849,8 +849,8 @@ function initInfoModal() {
                     </ul>
 
                     <h3 style="margin-top: 25px; color: #fff;">3. Why UKMO over BOM (ACCESS-G)?</h3>
-                    <p>The Australian Bureau of Meteorology's global model (ACCESS-G) is temporarily offline at our source provider, but it will automatically re-integrate into our blend once stable.</p>
-                    <p>In its absence, we lean heavily on the <strong>UKMO</strong> model. Why? Because the UK Met Office Unified Model actually serves as the foundational core for BOM's own ACCESS models! By blending UKMO with the world-leading ECMWF, we maintain incredibly accurate, world-class forecasts for Australian topography even while the local feed is down.</p>
+                    <p>The Australian Bureau of Meteorology (BOM) has, at this stage, unfortunately shut down their public ACCESS-G data feed, with no information as to when and if it will be restored. As a result, we lean heavily on the <strong>UKMO</strong> model instead.</p>
+                    <p>Why? Because the UK Met Office Unified Model actually serves as the foundational core for BOM's own ACCESS models! By blending UKMO with the world-leading ECMWF, we maintain incredibly accurate, world-class forecasts for Australian topography without relying on the discontinued BOM feed.</p>
 
                     <h3 style="margin-top: 25px; color: #fff;">4. The Reality of Weather Forecasting</h3>
                     <p>It’s an open secret that standard weather apps often get it wrong because they generalize broad data for the general public. We built this app to cut through the noise and give you the raw, unfiltered atmospheric truth.</p>
