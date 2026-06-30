@@ -1,0 +1,10 @@
+name = "astro-subscribe"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "ASTRO_SUBSCRIPTIONS"
+id = "44e50dd443ce47c485a417853e7f0144"
+
+[vars]
+ALLOWED_ORIGIN = "https://damiennikon.github.io"

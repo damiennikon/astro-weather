@@ -1,0 +1,689 @@
+:root {
+  --bg-primary:    #0a0e14;
+  --bg-card:       #111820;
+  --bg-card-hover: #1a2535;
+  --border:        #1a2d42;
+  --accent:        #c8a96e;   /* amber */
+  --accent-dim:    #a08040;
+  --text-primary:  #e8eaf0;
+  --text-muted:    #8a9ab0;
+  --text-dim:      #556070;
+
+  /* Verdict colours */
+  --great:  #4caf72;
+  --good:   #c8a96e;
+  --fair:   #e08030;
+  --poor:   #d04040;
+  --vpoor:  #801818;
+
+  /* Red Mode source colours */
+  --rm-bg:     #0d0000;
+  --rm-card:   #1a0000;
+  --rm-border: #3a0000;
+  --rm-accent: #cc2200;
+  --rm-text:   #cc4422;
+
+  /* Typography */
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-body:    'Inter', sans-serif;
+}
+
+/* Red Mode overrides — toggled via class on <body>.
+   Everything shifts to monochromatic red to preserve night vision;
+   verdict colours become a red-only brightness gradient instead of green/amber/orange. */
+.red-mode {
+  --bg-primary:    var(--rm-bg);
+  --bg-card:       var(--rm-card);
+  --bg-card-hover: #260000;
+  --border:        var(--rm-border);
+  --accent:        var(--rm-accent);
+  --accent-dim:    #991a00;
+  --text-primary:  var(--rm-text);
+  --text-muted:    #993322;
+  --text-dim:      #661f17;
+
+  --great:  #ff6644;
+  --good:   #cc2200;
+  --fair:   #992200;
+  --poor:   #661500;
+  --vpoor:  #330a00;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+#app {
+  max-width: 720px;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding-bottom: 2rem;
+}
+
+/* ---------------------------------------------------------------------
+   Header
+--------------------------------------------------------------------- */
+
+.app-header {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-title {
+  font-size: 1.75rem;
+  letter-spacing: 0.02em;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.icon-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+
+.icon-btn:hover {
+  background: var(--bg-card-hover);
+}
+
+.location-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.location-name {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.85rem;
+  padding: 0;
+}
+
+/* ---------------------------------------------------------------------
+   Panels
+--------------------------------------------------------------------- */
+
+.panel {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-title {
+  font-size: 1.25rem;
+  margin-bottom: 0.75rem;
+  color: var(--accent);
+}
+
+/* ---------------------------------------------------------------------
+   Ephemeris banner + optimal window
+--------------------------------------------------------------------- */
+
+.ephemeris-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.ephemeris-item {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  color: var(--text-muted);
+}
+
+.optimal-window {
+  background: var(--bg-card);
+  border: 1px solid var(--accent-dim);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+/* ---------------------------------------------------------------------
+   Hourly scroll + cards
+--------------------------------------------------------------------- */
+
+.hourly-scroll {
+  display: flex;
+  overflow-x: auto;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.hour-card {
+  flex: 0 0 auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 4.5rem;
+  color: var(--text-primary);
+}
+
+.hour-card.dark:hover {
+  background: var(--bg-card-hover);
+}
+
+.hour-card.daylight {
+  color: var(--text-dim);
+  background: var(--bg-card);
+  opacity: 0.7;
+}
+
+.hour-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.hour-card.daylight .hour-time {
+  color: var(--text-dim);
+}
+
+.hour-score {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.hour-cloud,
+.hour-temp {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.sun-icon {
+  font-size: 1rem;
+}
+
+.verdict-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+
+.verdict-dot.verdict-great,
+.outlook-score-badge.verdict-great {
+  background: var(--great);
+}
+.verdict-dot.verdict-good,
+.outlook-score-badge.verdict-good {
+  background: var(--good);
+}
+.verdict-dot.verdict-fair,
+.outlook-score-badge.verdict-fair {
+  background: var(--fair);
+}
+.verdict-dot.verdict-poor,
+.outlook-score-badge.verdict-poor {
+  background: var(--poor);
+}
+.verdict-dot.verdict-verypoor,
+.outlook-score-badge.verdict-verypoor {
+  background: var(--vpoor);
+}
+.verdict-dot.verdict-unavailable,
+.outlook-score-badge.verdict-unavailable {
+  background: var(--text-dim);
+}
+
+.hour-divider {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  padding: 0 0.25rem;
+  border-left: 1px dashed var(--border);
+  border-right: 1px dashed var(--border);
+}
+
+/* ---------------------------------------------------------------------
+   7-Day outlook
+--------------------------------------------------------------------- */
+
+.outlook-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.outlook-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.outlook-summary {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: left;
+}
+
+.outlook-summary:hover {
+  background: var(--bg-card-hover);
+}
+
+.outlook-date {
+  flex: 1 1 auto;
+  font-family: var(--font-display);
+}
+
+.outlook-score-badge {
+  color: var(--bg-primary);
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.outlook-stats {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  gap: 0.5rem;
+}
+
+.outlook-expanded {
+  border-top: 1px solid var(--border);
+  padding: 0.5rem;
+}
+
+/* ---------------------------------------------------------------------
+   Satellite view
+--------------------------------------------------------------------- */
+
+.secondary-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 0.4rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+.secondary-btn:hover {
+  background: var(--bg-card-hover);
+}
+
+.satellite-container {
+  margin-top: 0.75rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.satellite-container iframe {
+  width: 100%;
+  height: 360px;
+  border: none;
+  display: block;
+}
+
+/* ---------------------------------------------------------------------
+   Loading overlay
+--------------------------------------------------------------------- */
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 14, 20, 0.92);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  z-index: 50;
+}
+
+.stars {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-step {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* ---------------------------------------------------------------------
+   Modals
+--------------------------------------------------------------------- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  padding: 1rem;
+}
+
+.modal-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  max-width: 28rem;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.primary-btn {
+  width: 100%;
+  background: var(--accent);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  font-weight: 600;
+  margin: 1rem 0;
+}
+
+.search-wrap {
+  position: relative;
+}
+
+#location-search {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.95rem;
+}
+
+.search-results {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.search-result {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+  color: var(--text-primary);
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.search-result:hover {
+  background: var(--bg-card-hover);
+}
+
+.search-result-meta {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.location-error {
+  color: var(--poor);
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
+}
+
+/* ---------------------------------------------------------------------
+   Confidence modal contents
+--------------------------------------------------------------------- */
+
+.cloud-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin: 1rem 0;
+}
+
+.cloud-table th,
+.cloud-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.4rem;
+  text-align: center;
+}
+
+.cloud-table th:first-child,
+.cloud-table td:first-child {
+  text-align: left;
+  color: var(--text-muted);
+}
+
+.cloud-table .blended-row td {
+  color: var(--accent);
+}
+
+.agreement-row {
+  margin: 0.5rem 0;
+}
+
+.agreement-badge {
+  font-size: 0.85rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.agreement-badge.agree {
+  color: var(--great);
+  border-color: var(--great);
+}
+.agreement-badge.mixed {
+  color: var(--fair);
+  border-color: var(--fair);
+}
+.agreement-badge.disagree {
+  color: var(--poor);
+  border-color: var(--poor);
+}
+
+.score-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.score-bar-row {
+  display: grid;
+  grid-template-columns: 6rem 1fr 2.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.score-bar-label small {
+  color: var(--text-dim);
+}
+
+.score-bar-track {
+  height: 0.4rem;
+  background: var(--bg-primary);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.score-bar-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.score-bar-value {
+  text-align: right;
+  color: var(--text-muted);
+}
+
+/* ---------------------------------------------------------------------
+   Notification toast + bell states
+--------------------------------------------------------------------- */
+
+.notif-toast {
+  position: fixed;
+  bottom: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 0.65rem 1.25rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  z-index: 80;
+  white-space: nowrap;
+  max-width: calc(100vw - 2rem);
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.notif-active {
+  position: relative;
+}
+
+.notif-active::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 7px;
+  height: 7px;
+  background: var(--great);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------------
+   Update banner
+--------------------------------------------------------------------- */
+
+.update-banner {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: 999px;
+  padding: 0.6rem 1.25rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  z-index: 70;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}

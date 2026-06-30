@@ -1,0 +1,8 @@
+{
+  "name": "astro-scheduler-worker",
+  "private": true,
+  "dependencies": {
+    "web-push": "^3.6.7",
+    "astronomy-engine": "^2.1.19"
+  }
+}
