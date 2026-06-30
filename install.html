@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Install Astro Weather</title>
+    <meta name="theme-color" content="#0a0000">
+    <link rel="manifest" href="manifest.json">
+    <style>
+        :root {
+            --bg-color: #0a0000;
+            --card-bg: #1a1a24;
+            --text-color: #e0e0e0;
+            --accent-gold: #ff9800;
+            --border-color: #333;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 500px;
+            width: 100%;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 30px 20px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+        }
+
+        h1 {
+            color: var(--accent-gold);
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1.8rem;
+        }
+
+        p.subtitle {
+            color: #aaa;
+            font-size: 0.95rem;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+
+        /* Android Section */
+        .android-section {
+            padding: 20px;
+            background-color: rgba(255, 152, 0, 0.1);
+            border: 1px solid var(--accent-gold);
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+
+        #install-btn {
+            display: none; /* Hidden by default, shown by JS if supported */
+            background-color: var(--accent-gold);
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            padding: 14px 24px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.2s;
+        }
+
+        #install-btn:hover {
+            background-color: #e68a00;
+        }
+
+        #android-fallback {
+            color: #ccc;
+            font-size: 0.9rem;
+            margin: 0;
+        }
+
+        /* iOS Section */
+        .ios-section {
+            text-align: left;
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+        }
+
+        .ios-section h2 {
+            font-size: 1.2rem;
+            margin-top: 0;
+            color: #fff;
+            text-align: center;
+        }
+
+        .instruction-step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            background: rgba(255,255,255,0.05);
+            padding: 12px;
+            border-radius: 6px;
+        }
+
+        .step-number {
+            background-color: #444;
+            color: #fff;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .step-text {
+            font-size: 0.95rem;
+            line-height: 1.4;
+            color: #ddd;
+        }
+
+        .icon-inline {
+            display: inline-block;
+            vertical-align: middle;
+            background-color: #fff;
+            color: #000;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin: 0 4px;
+        }
+
+        .web-link {
+            display: block;
+            margin-top: 25px;
+            color: #888;
+            text-decoration: underline;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .web-link:hover {
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Astro Weather</h1>
+        <p class="subtitle">For the best experience, offline caching, and full-screen data, please install the app directly to your device.</p>
+
+        <div class="android-section">
+            <button id="install-btn">📲 Install App (Android / Chrome)</button>
+            <p id="android-fallback">If you are on Android, open this link in Chrome to see the 1-tap install button.</p>
+        </div>
+
+        <div class="ios-section">
+            <h2>How to install on iOS (iPhone/iPad)</h2>
+            
+            <div class="instruction-step">
+                <div class="step-number">1</div>
+                <div class="step-text">Make sure you are viewing this page in the <strong>Safari</strong> browser.</div>
+            </div>
+            
+            <div class="instruction-step">
+                <div class="step-number">2</div>
+                <div class="step-text">Tap the <strong>Share</strong> icon <span class="icon-inline">⍗</span> located at the bottom of your screen.</div>
+            </div>
+            
+            <div class="instruction-step">
+                <div class="step-number">3</div>
+                <div class="step-text">Scroll down the menu and tap <span class="icon-inline">➕ Add to Home Screen</span>.</div>
+            </div>
+        </div>
+
+        <a href="index.html" class="web-link">Or continue to the browser version</a>
+    </div>
+
+    <script>
+        let deferredPrompt;
+        const installBtn = document.getElementById('install-btn');
+        const fallbackText = document.getElementById('android-fallback');
+
+        // This event only fires on supported browsers (like Chrome on Android/Desktop)
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent Chrome from automatically showing the mini-infobar
+            e.preventDefault();
+            // Stash the event so it can be triggered later
+            deferredPrompt = e;
+            
+            // Show our custom install button and hide the fallback text
+            installBtn.style.display = 'block';
+            fallbackText.style.display = 'none';
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                // Show the browser's official install prompt
+                deferredPrompt.prompt();
+                
+                // Wait for the user to respond to the prompt
+                const { outcome } = await deferredPrompt.userChoice;
+                
+                if (outcome === 'accepted') {
+                    console.log('User accepted the install prompt');
+                    installBtn.style.display = 'none';
+                    fallbackText.innerText = "Installation successful! Check your home screen.";
+                    fallbackText.style.display = 'block';
+                } else {
+                    console.log('User dismissed the install prompt');
+                }
+                
+                // Clear the saved prompt since it can't be used again
+                deferredPrompt = null;
+            }
+        });
+
+        // Optional: Listen for the app being successfully installed to hide the button
+        window.addEventListener('appinstalled', () => {
+            installBtn.style.display = 'none';
+            fallbackText.innerText = "App successfully installed!";
+            fallbackText.style.display = 'block';
+            deferredPrompt = null;
+            console.log('PWA was installed');
+        });
+    </script>
+</body>
+</html>

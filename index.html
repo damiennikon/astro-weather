@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Astro Weather</title>
+    <meta name="description" content="High-accuracy astrophotography weather forecasts.">
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="icon-192x192.png" type="image/png">
+    <link rel="apple-touch-icon" href="icon-192x192.png">
+    <meta name="theme-color" content="#0a0000">
+</head>
+<body>
+    <header>
+        <h1>Astro Weather</h1>
+        <p id="location-label">Select a location</p>
+    </header>
+    
+    <main>
+        <div style="text-align: center; margin-bottom: 12px;">
+            <button id="info-btn" style="background: transparent; border: 1px solid var(--accent-gold, #ff9800); color: var(--accent-gold, #ff9800); border-radius: 50%; width: 26px; height: 26px; font-size: 14px; font-family: monospace; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0;" title="How We Forecast">i</button>
+        </div>
+        <div class="search-container">
+            <div class="search-wrapper">
+                <input type="text" id="location-search" placeholder="Search dark sky site (e.g., Wivenhoe)...">
+                <ul id="suggestions-list" class="suggestions-dropdown hidden"></ul>
+            </div>
+            <button id="search-btn">Search</button>
+            <div class="control-group">
+                <button id="locate-btn">📍 Locate Me</button>
+                <button id="satellite-btn">🛰️ Satellite</button>
+                <button id="red-mode-btn">🔴 Red Mode</button>
+            </div>
+        </div>
+
+        <div id="forecast-container">
+            <div class="empty-state-default">
+                <div class="empty-icon">🌙</div>
+                <p>Enter your location above to reveal tonight's conditions</p>
+            </div>
+        </div>
+    </main>
+
+    <div id="satellite-modal" class="modal-overlay" onclick="closeSatelliteModal(event)">
+        <div class="modal-content satellite-modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2>Satellite View</h2>
+                <button class="close-btn" onclick="closeSatelliteModal(null, true)">&times;</button>
+            </div>
+            <div class="iframe-container" style="flex: 1; width: 100%; height: 100%; display: flex; flex-direction: column;">
+                <iframe id="satellite-iframe" src="https://embed.windy.com/embed2.html?lat=-27.68&lon=153.18&zoom=5&overlay=satellite" width="100%" height="100%" frameborder="0" style="border:0; flex: 1;" allowfullscreen></iframe>
+            </div>
+        </div>
+    </div>
+
+    <div id="update-banner" class="update-banner hidden">
+        <span>New version available!</span>
+        <button id="update-btn">Update</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+    <script src="app.js" type="module"></script>
+</body>
+</html>
