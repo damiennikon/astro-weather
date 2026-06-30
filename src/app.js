@@ -69,6 +69,7 @@ export class App {
             <div class="ephemeris-item"><span class="ephemeris-icon">🌕</span><span id="moon-range"></span></div>
             <div class="ephemeris-item"><span class="ephemeris-icon">🌌</span><span id="mw-range"></span></div>
           </div>
+          <div id="summary-metrics"></div>
           <div id="optimal-window-callout" class="optimal-window"></div>
           <div id="tonight-hourly" class="hourly-scroll"></div>
         </section>
@@ -291,15 +292,25 @@ export class App {
     }
     try {
       const position = await new Promise((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          timeout: 20000,
+          maximumAge: 60000,
+        })
       )
       const lat = position.coords.latitude
       const lng = position.coords.longitude
       const name = await reverseGeocode(lat, lng)
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
       this.selectLocation({ lat, lng, name, timezone })
-    } catch {
-      this.showLocationError('Could not get your location. Try searching instead.')
+    } catch (err) {
+      const code = err?.code
+      if (code === 1) {
+        this.showLocationError('Location access was denied. Enable location permission in your browser settings and try again.')
+      } else if (code === 3) {
+        this.showLocationError('Location request timed out. Move outdoors for a better GPS signal, then try again — or search instead.')
+      } else {
+        this.showLocationError('Your location could not be determined. Try searching instead.')
+      }
     }
   }
 
@@ -413,6 +424,7 @@ export class App {
     this.root.querySelector('#moon-range').textContent = formatMoonRange(night)
     this.root.querySelector('#mw-range').textContent = formatMilkyWayRange(night)
 
+    this.root.querySelector('#summary-metrics').innerHTML = renderNightSummary(night)
     this.root.querySelector('#optimal-window-callout').textContent = formatOptimalWindow(night.optimalWindow)
 
     this.root.querySelector('#tonight-hourly').innerHTML = renderHourlyScroll(night, 0)
@@ -625,6 +637,79 @@ function scoreToVerdict(score) {
   if (score >= 45) return 'fair'
   if (score >= 25) return 'poor'
   return 'verypoor'
+}
+
+function cloudVerdict(v) {
+  if (v === null || v === undefined) return 'unavailable'
+  if (v <= 5)  return 'great'
+  if (v <= 15) return 'good'
+  if (v <= 30) return 'fair'
+  if (v <= 50) return 'poor'
+  return 'verypoor'
+}
+
+function humidVerdict(v) {
+  if (v === null || v === undefined) return 'unavailable'
+  if (v < 50) return 'great'
+  if (v < 65) return 'good'
+  if (v < 75) return 'fair'
+  if (v < 85) return 'poor'
+  return 'verypoor'
+}
+
+function windVerdict(v) {
+  if (v === null || v === undefined) return 'unavailable'
+  if (v <= 10) return 'great'
+  if (v <= 20) return 'good'
+  if (v <= 30) return 'fair'
+  if (v <= 35) return 'poor'
+  return 'verypoor'
+}
+
+function dewVerdict(v) {
+  if (v === null || v === undefined) return 'unavailable'
+  if (v > 8) return 'great'
+  if (v > 5) return 'good'
+  if (v > 3) return 'fair'
+  if (v > 1) return 'poor'
+  return 'verypoor'
+}
+
+function moonIllumVerdict(pct) {
+  if (pct === null || pct === undefined) return 'unavailable'
+  if (pct <= 10) return 'great'
+  if (pct <= 25) return 'good'
+  if (pct <= 50) return 'fair'
+  if (pct <= 80) return 'poor'
+  return 'verypoor'
+}
+
+const METRIC_SUBLABEL = {
+  great: 'Great', good: 'Good', fair: 'Fair', poor: 'Poor', verypoor: 'Very Poor', unavailable: '—',
+}
+
+function renderNightSummary(night) {
+  const avg = night.nightAvg
+  const darkHours = night.hours.filter(h => h.isDark && h.temp !== null && h.dewpoint !== null)
+  const avgDewSpread = darkHours.length > 0
+    ? darkHours.reduce((s, h) => s + (h.temp - h.dewpoint), 0) / darkHours.length
+    : null
+  const moonPct = avg.moonIllum !== null ? avg.moonIllum * 100 : null
+
+  const metrics = [
+    { label: 'Cloud',      value: formatPercent(avg.cloud),                                      verdict: cloudVerdict(avg.cloud) },
+    { label: 'Humidity',   value: formatPercent(avg.humidity),                                   verdict: humidVerdict(avg.humidity) },
+    { label: 'Wind',       value: avg.windspeed !== null ? `${Math.round(avg.windspeed)} km/h` : '—', verdict: windVerdict(avg.windspeed) },
+    { label: 'Dew Spread', value: avgDewSpread !== null ? `${avgDewSpread.toFixed(1)}°`         : '—', verdict: dewVerdict(avgDewSpread) },
+    { label: 'Moon',       value: formatPercent(moonPct),                                        verdict: moonIllumVerdict(moonPct) },
+  ]
+
+  return `<div class="summary-metrics">${metrics.map(m => `
+    <div class="metric-card">
+      <span class="metric-label">${m.label}</span>
+      <span class="metric-value">${m.value}</span>
+      <span class="metric-sublabel verdict-text-${m.verdict}">${METRIC_SUBLABEL[m.verdict] ?? '—'}</span>
+    </div>`).join('')}</div>`
 }
 
 function escapeHtml(str) {

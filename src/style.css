@@ -215,6 +215,65 @@ button {
 }
 
 /* ---------------------------------------------------------------------
+   Summary metrics panel
+--------------------------------------------------------------------- */
+
+.summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.metric-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  text-align: center;
+}
+
+.metric-label {
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.metric-value {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.metric-sublabel {
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.verdict-text-great     { color: var(--great); }
+.verdict-text-good      { color: var(--good); }
+.verdict-text-fair      { color: var(--fair); }
+.verdict-text-poor      { color: var(--poor); }
+.verdict-text-verypoor  { color: var(--vpoor); }
+.verdict-text-unavailable { color: var(--text-dim); }
+
+@media (max-width: 360px) {
+  .summary-metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------------
    Hourly scroll + cards
 --------------------------------------------------------------------- */
 
