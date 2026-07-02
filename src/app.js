@@ -800,6 +800,7 @@ function renderConfidenceModalBody(hour) {
     ? hour.components
       ? `
       <div class="score-breakdown">
+        <p class="score-breakdown-legend">Bar = this factor's own score out of 100. "wt" = how much it counts toward the total.</p>
         ${scoreBar('Cloud', 35, hour.components.cloudScore)}
         ${scoreBar('Moon', 30, hour.components.moonScore)}
         ${scoreBar('Humidity', 15, hour.components.humidScore)}
@@ -820,8 +821,8 @@ function scoreBar(label, weightPct, value) {
   const pct = value ?? 0
   return `
     <div class="score-bar-row">
-      <span class="score-bar-label">${label} <small>${weightPct}%</small></span>
+      <span class="score-bar-label">${label} <small>wt ${weightPct}%</small></span>
       <div class="score-bar-track"><div class="score-bar-fill" style="width:${pct}%"></div></div>
-      <span class="score-bar-value">${value ?? '—'}</span>
+      <span class="score-bar-value">${value !== null && value !== undefined ? `${value}/100` : '—'}</span>
     </div>`
 }

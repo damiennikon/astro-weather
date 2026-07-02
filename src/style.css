@@ -662,7 +662,7 @@ button {
 
 .score-bar-row {
   display: grid;
-  grid-template-columns: 6rem 1fr 2.5rem;
+  grid-template-columns: 6rem 1fr 3.4rem;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.8rem;
@@ -670,6 +670,13 @@ button {
 
 .score-bar-label small {
   color: var(--text-dim);
+}
+
+.score-breakdown-legend {
+  margin: 0 0 0.6rem;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  line-height: 1.4;
 }
 
 .score-bar-track {
