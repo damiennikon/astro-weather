@@ -12,6 +12,14 @@ const VERDICT_LABEL = {
   unavailable: 'No Data',
 }
 
+// scoreHour() short-circuits on a hard veto and returns just {score, verdict, vetoed} —
+// no component breakdown, since the veto overrides the weighted formula entirely.
+const VETO_LABEL = {
+  'cloud>70': 'Score capped — cloud cover above 70% overrides the component breakdown.',
+  'cloud>50': 'Score capped — cloud cover above 50% overrides the component breakdown.',
+  brightmoon: 'Score capped — bright moon (>80% illuminated, above the horizon) overrides the component breakdown.',
+}
+
 export class App {
   constructor() {
     this.root = document.querySelector('#app')
@@ -788,15 +796,17 @@ function renderConfidenceModalBody(hour) {
       </tbody>
     </table>`
 
-  const scoreBars = hour.isDark && hour.components
-    ? `
-    <div class="score-breakdown">
-      ${scoreBar('Cloud', 35, hour.components.cloudScore)}
-      ${scoreBar('Moon', 30, hour.components.moonScore)}
-      ${scoreBar('Humidity', 15, hour.components.humidScore)}
-      ${scoreBar('Dew', 10, hour.components.dewScore)}
-      ${scoreBar('Wind', 10, hour.components.windScore)}
-    </div>`
+  const scoreBars = hour.isDark
+    ? hour.components
+      ? `
+      <div class="score-breakdown">
+        ${scoreBar('Cloud', 35, hour.components.cloudScore)}
+        ${scoreBar('Moon', 30, hour.components.moonScore)}
+        ${scoreBar('Humidity', 15, hour.components.humidScore)}
+        ${scoreBar('Dew', 10, hour.components.dewScore)}
+        ${scoreBar('Wind', 10, hour.components.windScore)}
+      </div>`
+      : `<p class="score-veto-note">${VETO_LABEL[hour.vetoed] ?? 'Score capped by a hard veto condition — the weighted component breakdown does not apply.'}</p>`
     : ''
 
   return `

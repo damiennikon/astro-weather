@@ -673,15 +673,35 @@ button {
 }
 
 .score-bar-track {
-  height: 0.4rem;
+  position: relative;
+  height: 0.6rem;
   background: var(--bg-primary);
-  border-radius: 999px;
+  border-radius: 2px;
   overflow: hidden;
+  /* Calibration gridlines at 25/50/75% so bar length can be judged against a
+     fixed ruler instead of by eye against other bars. */
+  background-image: linear-gradient(to right, var(--border) 1px, transparent 1px);
+  background-size: 25% 100%;
 }
 
 .score-bar-fill {
   height: 100%;
   background: var(--accent);
+  /* Sharp edges, not a pill: a fully-rounded cap on a short bar visually eats a
+     fixed chunk of its length regardless of percentage, making low scores read
+     as wider than they are. */
+  border-radius: 0;
+}
+
+.score-veto-note {
+  margin-top: 1rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 .score-bar-value {

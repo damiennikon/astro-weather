@@ -6,6 +6,13 @@ import { ExpirationPlugin } from 'workbox-expiration'
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
 
+// Without claiming open clients, a skipWaiting()'d SW activates but never takes
+// control of the already-open tab — 'controllerchange' never fires, so the
+// update-banner reload flow in main.js waits forever and appears to do nothing.
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim())
+})
+
 registerRoute(
   ({ url }) => url.origin === 'https://api.open-meteo.com',
   new StaleWhileRevalidate({
