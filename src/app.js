@@ -799,13 +799,12 @@ function renderConfidenceModalBody(hour) {
   const scoreBars = hour.isDark
     ? hour.components
       ? `
-      <div class="score-breakdown">
-        <p class="score-breakdown-legend">Bar = this factor's own score out of 100. "wt" = how much it counts toward the total.</p>
-        ${scoreBar('Cloud', 35, hour.components.cloudScore)}
-        ${scoreBar('Moon', 30, hour.components.moonScore)}
-        ${scoreBar('Humidity', 15, hour.components.humidScore)}
-        ${scoreBar('Dew', 10, hour.components.dewScore)}
-        ${scoreBar('Wind', 10, hour.components.windScore)}
+      <div class="score-breakdown summary-metrics">
+        ${scoreMetric('Cloud', 35, hour.components.cloudScore)}
+        ${scoreMetric('Moon', 30, hour.components.moonScore)}
+        ${scoreMetric('Humidity', 15, hour.components.humidScore)}
+        ${scoreMetric('Dew', 10, hour.components.dewScore)}
+        ${scoreMetric('Wind', 10, hour.components.windScore)}
       </div>`
       : `<p class="score-veto-note">${VETO_LABEL[hour.vetoed] ?? 'Score capped by a hard veto condition — the weighted component breakdown does not apply.'}</p>`
     : ''
@@ -817,12 +816,12 @@ function renderConfidenceModalBody(hour) {
   `
 }
 
-function scoreBar(label, weightPct, value) {
-  const pct = value ?? 0
+function scoreMetric(label, weightPct, value) {
+  const verdict = scoreToVerdict(value)
   return `
-    <div class="score-bar-row">
-      <span class="score-bar-label">${label} <small>wt ${weightPct}%</small></span>
-      <div class="score-bar-track"><div class="score-bar-fill" style="width:${pct}%"></div></div>
-      <span class="score-bar-value">${value !== null && value !== undefined ? `${value}/100` : '—'}</span>
+    <div class="metric-card">
+      <span class="metric-label">${label} ${weightPct}%</span>
+      <span class="metric-value">${value ?? '—'}</span>
+      <span class="metric-sublabel verdict-text-${verdict}">${METRIC_SUBLABEL[verdict] ?? '—'}</span>
     </div>`
 }

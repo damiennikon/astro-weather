@@ -654,50 +654,11 @@ button {
 }
 
 .score-breakdown {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
   margin-top: 1rem;
-}
-
-.score-bar-row {
-  display: grid;
-  grid-template-columns: 6rem 1fr 3.4rem;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8rem;
-}
-
-.score-bar-label small {
-  color: var(--text-dim);
-}
-
-.score-breakdown-legend {
-  margin: 0 0 0.6rem;
-  color: var(--text-dim);
-  font-size: 0.7rem;
-  line-height: 1.4;
-}
-
-.score-bar-track {
-  position: relative;
-  height: 0.6rem;
-  background: var(--bg-primary);
-  border-radius: 2px;
-  overflow: hidden;
-  /* Calibration gridlines at 25/50/75% so bar length can be judged against a
-     fixed ruler instead of by eye against other bars. */
-  background-image: linear-gradient(to right, var(--border) 1px, transparent 1px);
-  background-size: 25% 100%;
-}
-
-.score-bar-fill {
-  height: 100%;
-  background: var(--accent);
-  /* Sharp edges, not a pill: a fully-rounded cap on a short bar visually eats a
-     fixed chunk of its length regardless of percentage, making low scores read
-     as wider than they are. */
-  border-radius: 0;
+  /* The modal card is narrower than the full page, so 5 columns (fine in the
+     full-width Tonight summary) clips at modal width — always use 3. This rule
+     must stay below .summary-metrics in source order to win on equal specificity. */
+  grid-template-columns: repeat(3, 1fr);
 }
 
 .score-veto-note {
@@ -709,11 +670,6 @@ button {
   color: var(--text-muted);
   font-size: 0.8rem;
   line-height: 1.4;
-}
-
-.score-bar-value {
-  text-align: right;
-  color: var(--text-muted);
 }
 
 /* ---------------------------------------------------------------------
