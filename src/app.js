@@ -75,7 +75,7 @@ export class App {
         </section>
 
         <section id="outlook-panel" class="panel" hidden>
-          <h2 class="panel-title">7-Day Outlook</h2>
+          <h2 class="panel-title">6-Day Outlook</h2>
           <div id="outlook-list" class="outlook-list"></div>
         </section>
 

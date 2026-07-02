@@ -8,7 +8,12 @@ const UPPER_VARS = 'windspeed_250hPa'
 // it now silently returns all-null values. 'ecmwf_ifs025' is the current equivalent.
 const MODELS = { ecmwf: 'ecmwf_ifs025', icon: 'icon_global', ukmo: 'ukmo_seamless' }
 
-const NIGHTS = 8
+// NOTE: UKMO's real forecast horizon is ~7.5 days and ICON's ~8 days regardless of
+// forecast_days requested, and that boundary shifts by the hour as "now" advances —
+// a fixed night count drifts stale. MAX_NIGHTS is just a generous candidate cap;
+// buildForecast() trims the actual returned nights to whichever ones fall fully
+// inside every model's real (non-null) data coverage — see findCoverageEnd().
+const MAX_NIGHTS = 8
 const DISPLAY_HOURS = 14 // 17:00 -> 07:00
 const GALACTIC_CENTER_RA = 17.76 // hours
 const GALACTIC_CENTER_DEC = -29.0 // degrees
@@ -65,11 +70,50 @@ async function buildForecast(lat, lng, timezone) {
   postProgress('Blending models & scoring...')
   const models = { ecmwf, ecmwfIndex, icon, iconIndex, ukmo, ukmoIndex }
 
-  const nights = []
-  for (let n = 0; n < NIGHTS; n++) {
-    nights.push(buildNight(n, observer, models))
+  const coverageEnd = minCoverageEnd([ecmwf, icon, ukmo])
+
+  const candidates = []
+  for (let n = 0; n < MAX_NIGHTS; n++) {
+    candidates.push(buildNight(n, observer, models))
   }
+
+  // Only keep nights whose scored (dark-hour) window is fully inside every model's
+  // real data coverage — a night with a partially-null dark window would otherwise
+  // render with score 0 / dashes for its later hours.
+  const nights = coverageEnd
+    ? candidates.filter((night) => night.astroEnd !== null && night.astroEnd <= coverageEnd)
+    : candidates
+  if (nights.length === 0 && candidates.length > 0) nights.push(candidates[0])
+
   return nights
+}
+
+// Walks each model's hourly cloud arrays from the start and returns the timestamp of
+// the last hour where low/mid/high are all still non-null. Open-Meteo returns nulls
+// once a model's real forecast horizon is exceeded, regardless of forecast_days requested.
+function findCoverageEnd(response) {
+  const times = response?.hourly?.time ?? []
+  const low = response?.hourly?.cloudcover_low ?? []
+  const mid = response?.hourly?.cloudcover_mid ?? []
+  const high = response?.hourly?.cloudcover_high ?? []
+  let lastValidIdx = -1
+  for (let i = 0; i < times.length; i++) {
+    if (low[i] != null && mid[i] != null && high[i] != null) {
+      lastValidIdx = i
+    } else {
+      break
+    }
+  }
+  return lastValidIdx >= 0 ? new Date(times[lastValidIdx]) : null
+}
+
+// The binding constraint is whichever model runs out of real data soonest. A model
+// that failed to return any data at all (e.g. a transient API error) is excluded
+// rather than collapsing the whole forecast to zero nights.
+function minCoverageEnd(responses) {
+  const ends = responses.map(findCoverageEnd).filter((e) => e !== null)
+  if (ends.length === 0) return null
+  return new Date(Math.min(...ends.map((e) => e.getTime())))
 }
 
 function indexHourly(response) {
@@ -118,9 +162,14 @@ function blendCloud(ecmwf, ukmo, icon) {
   return avg
 }
 
-function sumCloudTotal(low, mid, high) {
+// Cloud layers are treated as independent overlapping planes: combined coverage is
+// the probability that at least one layer obscures the sky, not a plain sum. A naive
+// additive sum double-counts the sky area where layers overlap (e.g. low=60% +
+// mid=50% would wrongly claim 100%+ cover when the true combined obscuration is 80%).
+function combineCloudLayers(low, mid, high) {
   if (low === null && mid === null && high === null) return null
-  return Math.min(100, (low ?? 0) + (mid ?? 0) + (high ?? 0))
+  const clearSky = (1 - (low ?? 0) / 100) * (1 - (mid ?? 0) / 100) * (1 - (high ?? 0) / 100)
+  return 100 * (1 - clearSky)
 }
 
 function average(values) {
@@ -216,14 +265,11 @@ function buildHour(time, isDark, astroEnd, observer, models) {
   const cloudLow = blendCloud(ecmwfLow, ukmoLow, iconLow)
   const cloudMid = blendCloud(ecmwfMid, ukmoMid, iconMid)
   const cloudHigh = blendCloud(ecmwfHigh, ukmoHigh, iconHigh)
-  const cloud =
-    cloudLow === null && cloudMid === null && cloudHigh === null
-      ? null
-      : Math.min(100, (cloudLow ?? 0) + (cloudMid ?? 0) + (cloudHigh ?? 0))
+  const cloud = combineCloudLayers(cloudLow, cloudMid, cloudHigh)
 
-  const cloudEcmwf = sumCloudTotal(ecmwfLow, ecmwfMid, ecmwfHigh)
-  const cloudUkmo = sumCloudTotal(ukmoLow, ukmoMid, ukmoHigh)
-  const cloudIcon = sumCloudTotal(iconLow, iconMid, iconHigh)
+  const cloudEcmwf = combineCloudLayers(ecmwfLow, ecmwfMid, ecmwfHigh)
+  const cloudUkmo = combineCloudLayers(ukmoLow, ukmoMid, ukmoHigh)
+  const cloudIcon = combineCloudLayers(iconLow, iconMid, iconHigh)
 
   let agreement = null
   if (isDark && cloudEcmwf !== null && cloudUkmo !== null && cloudIcon !== null) {
