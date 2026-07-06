@@ -23,9 +23,23 @@
   --rm-accent: #cc2200;
   --rm-text:   #cc4422;
 
+  /* Glass surfaces — declared explicitly here AND in .red-mode because var()
+     inside a custom property resolves at the declaring element, so deriving
+     these from --bg-card would not re-resolve when Red Mode swaps it. */
+  --glass-bg:        rgba(17, 24, 32, 0.55);
+  --glass-bg-strong: rgba(17, 24, 32, 0.82);
+  --glass-border:    rgba(94, 140, 198, 0.22);
+  --glass-highlight: rgba(190, 214, 255, 0.08);
+
+  /* Sky */
+  --bg-nebula:   #16233a;
+  --star-bright: rgba(226, 234, 248, 0.65);
+  --star-dim:    rgba(180, 200, 230, 0.35);
+
   /* Typography */
   --font-display: 'Barlow Condensed', sans-serif;
   --font-body:    'Inter', sans-serif;
+  --font-mono:    ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, Menlo, monospace;
 }
 
 /* Red Mode overrides — toggled via class on <body>.
@@ -47,6 +61,15 @@
   --fair:   #992200;
   --poor:   #661500;
   --vpoor:  #330a00;
+
+  --glass-bg:        rgba(24, 2, 0, 0.6);
+  --glass-bg-strong: rgba(24, 2, 0, 0.85);
+  --glass-border:    rgba(140, 30, 0, 0.35);
+  --glass-highlight: rgba(255, 80, 30, 0.06);
+
+  --bg-nebula:   #1c0500;
+  --star-bright: rgba(204, 60, 20, 0.35);
+  --star-dim:    rgba(160, 40, 10, 0.22);
 }
 
 *,
@@ -75,6 +98,54 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+/* ---------------------------------------------------------------------
+   Star field — two fixed, pointer-transparent layers behind the content.
+   Pure CSS radial-gradient dots: zero network cost, no layout impact.
+   Layer 1 (::before) also carries the faint nebula glow at the top of
+   the viewport. Layer 2 (::after) twinkles via an opacity-only loop.
+--------------------------------------------------------------------- */
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+body::before {
+  background-image:
+    radial-gradient(1px 1px at 22px 34px,   var(--star-dim)    50%, transparent 51%),
+    radial-gradient(1px 1px at 118px 156px, var(--star-bright) 50%, transparent 51%),
+    radial-gradient(1.4px 1.4px at 195px 62px, var(--star-dim) 50%, transparent 51%),
+    radial-gradient(1px 1px at 66px 208px,  var(--star-bright) 50%, transparent 51%),
+    radial-gradient(1px 1px at 244px 120px, var(--star-dim)    50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 160px 245px, var(--star-dim) 50%, transparent 51%),
+    radial-gradient(140% 70% at 50% -20%,   var(--bg-nebula) 0%, transparent 65%);
+  background-size:
+    280px 280px, 280px 280px, 280px 280px,
+    280px 280px, 280px 280px, 280px 280px,
+    100% 100%;
+  background-repeat: repeat, repeat, repeat, repeat, repeat, repeat, no-repeat;
+}
+
+body::after {
+  background-image:
+    radial-gradient(1.3px 1.3px at 45px 60px,   var(--star-bright) 50%, transparent 51%),
+    radial-gradient(1px 1px at 200px 150px,     var(--star-bright) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 310px 250px, var(--star-dim)    50%, transparent 51%),
+    radial-gradient(1px 1px at 130px 310px,     var(--star-bright) 50%, transparent 51%);
+  background-size: 340px 340px;
+  background-repeat: repeat;
+  animation: twinkle 8s ease-in-out infinite;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.9; }
+}
+
 h1,
 h2,
 h3,
@@ -98,6 +169,12 @@ button {
   cursor: pointer;
 }
 
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
+}
+
 #app {
   max-width: 720px;
   margin: 0 auto;
@@ -105,13 +182,39 @@ button {
   padding-bottom: 2rem;
 }
 
+/* Red Mode vignette — a fixed red darkening around the screen edges to
+   reinforce the night-vision feel. Sits above everything, never intercepts
+   input. Only exists while .red-mode is active. */
+.red-mode #app::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 52%, rgba(46, 4, 0, 0.55) 100%);
+}
+
+/* Emoji glyphs ignore CSS colour vars, so push them toward red in Red Mode. */
+.red-mode .ephemeris-icon,
+.red-mode .sun-icon,
+.red-mode .icon-btn,
+.red-mode .outlook-stats {
+  filter: sepia(1) saturate(4) hue-rotate(-28deg) brightness(0.6);
+}
+
 /* ---------------------------------------------------------------------
-   Header
+   Header — sticky glass bar
 --------------------------------------------------------------------- */
 
 .app-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
   padding: 1rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
 }
 
 .header-top {
@@ -121,8 +224,15 @@ button {
 }
 
 .app-title {
-  font-size: 1.75rem;
-  letter-spacing: 0.02em;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
+  background: linear-gradient(180deg, var(--text-primary) 30%, color-mix(in srgb, var(--text-primary) 55%, var(--accent)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .header-actions {
@@ -131,19 +241,23 @@ button {
 }
 
 .icon-btn {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 50%;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.35rem;
+  height: 2.35rem;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.1rem;
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  transition: transform 0.15s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .icon-btn:hover {
   background: var(--bg-card-hover);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  transform: translateY(-1px);
 }
 
 .location-row {
@@ -156,62 +270,246 @@ button {
 .location-name {
   color: var(--text-muted);
   font-size: 0.95rem;
+  letter-spacing: 0.01em;
 }
 
 .link-btn {
   background: none;
   border: none;
   color: var(--accent);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   padding: 0;
 }
 
 /* ---------------------------------------------------------------------
-   Panels
+   Panels — floating glass sections
 --------------------------------------------------------------------- */
 
 .panel {
+  margin: 0.9rem 0.75rem;
   padding: 1rem;
-  border-bottom: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
+  border-radius: 1rem;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 8px 28px rgba(0, 0, 0, 0.35);
 }
 
 .panel-title {
-  font-size: 1.25rem;
-  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
   color: var(--accent);
+  margin-bottom: 0.9rem;
+}
+
+.panel-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 35%, transparent), transparent);
 }
 
 /* ---------------------------------------------------------------------
-   Ephemeris banner + optimal window
+   Verdict colour plumbing — every verdict-coloured element reads --v,
+   so glows, borders, and badges stay consistent and Red Mode–safe.
+--------------------------------------------------------------------- */
+
+.verdict-dot.verdict-great,
+.outlook-score-badge.verdict-great,
+.outlook-verdict-great,
+.verdict-ring-great {
+  --v: var(--great);
+}
+.verdict-dot.verdict-good,
+.outlook-score-badge.verdict-good,
+.outlook-verdict-good,
+.verdict-ring-good {
+  --v: var(--good);
+}
+.verdict-dot.verdict-fair,
+.outlook-score-badge.verdict-fair,
+.outlook-verdict-fair,
+.verdict-ring-fair {
+  --v: var(--fair);
+}
+.verdict-dot.verdict-poor,
+.outlook-score-badge.verdict-poor,
+.outlook-verdict-poor,
+.verdict-ring-poor {
+  --v: var(--poor);
+}
+.verdict-dot.verdict-verypoor,
+.outlook-score-badge.verdict-verypoor,
+.outlook-verdict-verypoor,
+.verdict-ring-verypoor {
+  --v: var(--vpoor);
+}
+.verdict-dot.verdict-unavailable,
+.outlook-score-badge.verdict-unavailable,
+.outlook-verdict-unavailable,
+.verdict-ring-unavailable {
+  --v: var(--text-dim);
+}
+
+.verdict-text-great       { color: var(--great); }
+.verdict-text-good        { color: var(--good); }
+.verdict-text-fair        { color: var(--fair); }
+.verdict-text-poor        { color: var(--poor); }
+.verdict-text-verypoor    { color: var(--vpoor); }
+.verdict-text-unavailable { color: var(--text-dim); }
+
+/* ---------------------------------------------------------------------
+   Tonight hero — glowing score ring
+--------------------------------------------------------------------- */
+
+.tonight-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0.5rem 0 1.25rem;
+}
+
+.score-ring {
+  /* --v comes from the verdict-ring-* class (verdict plumbing above); do not
+     set a default here — equal specificity + later source order would override it. */
+  position: relative;
+  width: 10rem;
+  height: 10rem;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid color-mix(in srgb, var(--v) 85%, transparent);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--v) 8%, transparent) 55%,
+    color-mix(in srgb, var(--v) 22%, transparent) 100%
+  );
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--v) 55%, transparent),
+    0 0 55px color-mix(in srgb, var(--v) 28%, transparent),
+    inset 0 0 26px color-mix(in srgb, var(--v) 30%, transparent);
+}
+
+/* Pulse only on GREAT nights — an expanding echo ring, transform + opacity only. */
+.verdict-ring-great::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--v) 65%, transparent);
+  animation: ring-pulse 2.6s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes ring-pulse {
+  0%   { transform: scale(1);    opacity: 0.9; }
+  70%  { transform: scale(1.12); opacity: 0; }
+  100% { transform: scale(1.12); opacity: 0; }
+}
+
+.score-ring-value {
+  font-family: var(--font-display);
+  font-size: 3.6rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  text-shadow: 0 0 22px color-mix(in srgb, var(--v) 60%, transparent);
+}
+
+.score-ring-verdict {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  margin-top: 0.3rem;
+  /* optical centering: letter-spacing adds a trailing gap */
+  margin-right: -0.24em;
+}
+
+.score-ring-caption {
+  margin-top: 0.7rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+
+/* ---------------------------------------------------------------------
+   Ephemeris banner — instrument readout
 --------------------------------------------------------------------- */
 
 .ephemeris-banner {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  padding: 0.75rem;
+  gap: 0.5rem;
+  background: color-mix(in srgb, var(--bg-primary) 55%, transparent);
+  border: 1px solid var(--glass-border);
+  border-radius: 0.6rem;
+  padding: 0.8rem 0.85rem;
   margin-bottom: 0.75rem;
-  font-size: 0.9rem;
+}
+
+.ephemeris-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0.85rem;
+  right: 0.85rem;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 55%, transparent),
+    transparent
+  );
 }
 
 .ephemeris-item {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.6rem;
   align-items: center;
   color: var(--text-muted);
 }
 
+.ephemeris-icon {
+  width: 1.4rem;
+  text-align: center;
+  font-size: 1rem;
+  filter: saturate(0.7) brightness(0.9);
+}
+
+.ephemeris-item > span:last-child {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+}
+
 .optimal-window {
-  background: var(--bg-card);
-  border: 1px solid var(--accent-dim);
-  border-radius: 0.5rem;
-  padding: 0.6rem 0.75rem;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 0.6rem;
+  padding: 0.65rem 0.8rem;
   margin-bottom: 1rem;
-  font-size: 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
   color: var(--accent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 /* ---------------------------------------------------------------------
@@ -220,28 +518,31 @@ button {
 
 .summary-metrics {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  /* minmax(0, 1fr): let cards shrink below their label's min-content width
+     (labels ellipsize) instead of overflowing the panel on narrow screens. */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.5rem;
   margin-bottom: 0.75rem;
 }
 
 .metric-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--bg-card) 65%, transparent);
+  border: 1px solid var(--glass-border);
+  border-radius: 0.6rem;
   padding: 0.6rem 0.4rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.2rem;
   text-align: center;
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
 }
 
 .metric-label {
   font-size: 0.6rem;
   color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -250,26 +551,22 @@ button {
 
 .metric-value {
   font-family: var(--font-display);
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   color: var(--text-primary);
 }
 
 .metric-sublabel {
   font-size: 0.65rem;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.verdict-text-great     { color: var(--great); }
-.verdict-text-good      { color: var(--good); }
-.verdict-text-fair      { color: var(--fair); }
-.verdict-text-poor      { color: var(--poor); }
-.verdict-text-verypoor  { color: var(--vpoor); }
-.verdict-text-unavailable { color: var(--text-dim); }
-
-@media (max-width: 360px) {
+@media (max-width: 430px) {
   .summary-metrics {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -281,35 +578,46 @@ button {
   display: flex;
   overflow-x: auto;
   gap: 0.5rem;
-  padding-bottom: 0.5rem;
+  padding-bottom: 0.6rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
 .hour-card {
   flex: 0 0 auto;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  padding: 0.6rem 0.5rem;
+  background: color-mix(in srgb, var(--bg-card) 65%, transparent);
+  border: 1px solid var(--glass-border);
+  border-radius: 0.6rem;
+  padding: 0.65rem 0.5rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.3rem;
-  min-width: 4.5rem;
+  gap: 0.35rem;
+  min-width: 4.6rem;
   color: var(--text-primary);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  transition: transform 0.15s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .hour-card.dark:hover {
-  background: var(--bg-card-hover);
+  background: color-mix(in srgb, var(--bg-card-hover) 80%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  transform: translateY(-2px);
 }
 
+/* Daylight cards read as clearly "outside the session" — flatter, dashed,
+   desaturated, no glass highlight. */
 .hour-card.daylight {
+  background: color-mix(in srgb, var(--bg-card) 30%, transparent);
+  border: 1px dashed var(--border);
+  box-shadow: none;
   color: var(--text-dim);
-  background: var(--bg-card);
-  opacity: 0.7;
+  opacity: 0.65;
 }
 
 .hour-time {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
   color: var(--text-muted);
 }
 
@@ -319,50 +627,46 @@ button {
 
 .hour-score {
   font-family: var(--font-display);
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .hour-cloud,
 .hour-temp {
   font-size: 0.7rem;
   color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .sun-icon {
-  font-size: 1rem;
+  font-size: 0.9rem;
+  filter: saturate(0.5) brightness(0.85);
 }
 
 .verdict-dot {
-  width: 0.6rem;
-  height: 0.6rem;
+  width: 0.85rem;
+  height: 0.85rem;
   border-radius: 50%;
-  background: var(--text-dim);
+  background: var(--v, var(--text-dim));
+  box-shadow:
+    0 0 4px color-mix(in srgb, var(--v, transparent) 90%, transparent),
+    0 0 12px color-mix(in srgb, var(--v, transparent) 55%, transparent);
 }
 
-.verdict-dot.verdict-great,
-.outlook-score-badge.verdict-great {
-  background: var(--great);
-}
-.verdict-dot.verdict-good,
-.outlook-score-badge.verdict-good {
-  background: var(--good);
-}
-.verdict-dot.verdict-fair,
-.outlook-score-badge.verdict-fair {
-  background: var(--fair);
-}
-.verdict-dot.verdict-poor,
-.outlook-score-badge.verdict-poor {
-  background: var(--poor);
-}
-.verdict-dot.verdict-verypoor,
-.outlook-score-badge.verdict-verypoor {
-  background: var(--vpoor);
-}
-.verdict-dot.verdict-unavailable,
-.outlook-score-badge.verdict-unavailable {
-  background: var(--text-dim);
+.outlook-score-badge {
+  background: var(--v, var(--text-dim));
+  color: var(--bg-primary);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  border-radius: 999px;
+  padding: 0.15rem 0.65rem;
+  min-width: 2.4rem;
+  text-align: center;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--v, transparent) 45%, transparent);
 }
 
 .hour-divider {
@@ -372,11 +676,15 @@ button {
   justify-content: center;
   writing-mode: vertical-rl;
   text-orientation: mixed;
+  font-family: var(--font-display);
   font-size: 0.7rem;
-  color: var(--text-dim);
-  padding: 0 0.25rem;
-  border-left: 1px dashed var(--border);
-  border-right: 1px dashed var(--border);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--accent-dim);
+  padding: 0 0.3rem;
+  border-left: 1px dashed color-mix(in srgb, var(--accent) 35%, transparent);
+  border-right: 1px dashed color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 /* ---------------------------------------------------------------------
@@ -386,14 +694,16 @@ button {
 .outlook-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.6rem;
 }
 
 .outlook-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--bg-card) 65%, transparent);
+  border: 1px solid var(--glass-border);
+  border-left: 3px solid var(--v, var(--border));
+  border-radius: 0.6rem;
   overflow: hidden;
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
 }
 
 .outlook-summary {
@@ -401,28 +711,24 @@ button {
   background: none;
   border: none;
   color: var(--text-primary);
-  padding: 0.75rem;
+  padding: 0.8rem 0.75rem;
   display: flex;
   align-items: center;
   gap: 0.75rem;
   text-align: left;
+  transition: background-color 0.2s ease;
 }
 
 .outlook-summary:hover {
-  background: var(--bg-card-hover);
+  background: color-mix(in srgb, var(--bg-card-hover) 70%, transparent);
 }
 
 .outlook-date {
   flex: 1 1 auto;
   font-family: var(--font-display);
-}
-
-.outlook-score-badge {
-  color: var(--bg-primary);
-  font-weight: 700;
-  border-radius: 999px;
-  padding: 0.15rem 0.6rem;
-  font-size: 0.85rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
 }
 
 .outlook-stats {
@@ -430,11 +736,25 @@ button {
   color: var(--text-muted);
   display: flex;
   gap: 0.5rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .outlook-expanded {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--glass-border);
   padding: 0.5rem;
+}
+
+/* The expansion is an innerHTML re-render, so animate the mount instead of
+   a height transition — opacity + transform only, no layout properties. */
+.outlook-expanded:not([hidden]) {
+  animation: rise-in 0.28s ease;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
 }
 
 /* ---------------------------------------------------------------------
@@ -442,23 +762,26 @@ button {
 --------------------------------------------------------------------- */
 
 .secondary-btn {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-card) 65%, transparent);
+  border: 1px solid var(--glass-border);
   color: var(--text-primary);
-  border-radius: 0.4rem;
-  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  padding: 0.55rem 1rem;
   font-size: 0.9rem;
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  transition: transform 0.15s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .secondary-btn:hover {
   background: var(--bg-card-hover);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .satellite-container {
   margin-top: 0.75rem;
-  border-radius: 0.5rem;
+  border-radius: 0.6rem;
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
 }
 
 .satellite-container iframe {
@@ -475,7 +798,9 @@ button {
 .loading-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(10, 14, 20, 0.92);
+  background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -490,6 +815,7 @@ button {
   border-radius: 50%;
   border: 2px solid var(--border);
   border-top-color: var(--accent);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 25%, transparent);
   animation: spin 1s linear infinite;
 }
 
@@ -502,6 +828,7 @@ button {
 .loading-step {
   color: var(--text-muted);
   font-size: 0.9rem;
+  font-family: var(--font-mono);
 }
 
 /* ---------------------------------------------------------------------
@@ -511,7 +838,9 @@ button {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.6);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -520,15 +849,23 @@ button {
 }
 
 .modal-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 1rem;
   padding: 1.5rem;
   max-width: 28rem;
   width: 100%;
   max-height: 85vh;
   overflow-y: auto;
   position: relative;
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 16px 48px rgba(0, 0, 0, 0.55);
+}
+
+.modal-card h2 {
+  font-size: 1.4rem;
+  letter-spacing: 0.03em;
 }
 
 .modal-close {
@@ -544,13 +881,19 @@ button {
 
 .primary-btn {
   width: 100%;
-  background: var(--accent);
+  background: linear-gradient(180deg, var(--accent), var(--accent-dim));
   color: var(--bg-primary);
   border: none;
-  border-radius: 0.5rem;
+  border-radius: 0.6rem;
   padding: 0.75rem;
   font-weight: 600;
   margin: 1rem 0;
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--accent) 30%, transparent);
+  transition: transform 0.15s ease;
+}
+
+.primary-btn:active {
+  transform: scale(0.98);
 }
 
 .search-wrap {
@@ -559,12 +902,13 @@ button {
 
 #location-search {
   width: 100%;
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+  border: 1px solid var(--glass-border);
   color: var(--text-primary);
-  border-radius: 0.5rem;
+  border-radius: 0.6rem;
   padding: 0.6rem 0.75rem;
   font-size: 0.95rem;
+  font-family: var(--font-body);
 }
 
 .search-results {
@@ -575,19 +919,21 @@ button {
 }
 
 .search-result {
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+  border: 1px solid var(--glass-border);
+  border-radius: 0.5rem;
   padding: 0.5rem 0.6rem;
   text-align: left;
   color: var(--text-primary);
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .search-result:hover {
   background: var(--bg-card-hover);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .search-result-meta {
@@ -615,14 +961,30 @@ button {
 .cloud-table th,
 .cloud-table td {
   border-bottom: 1px solid var(--border);
-  padding: 0.4rem;
+  padding: 0.45rem 0.4rem;
   text-align: center;
+}
+
+.cloud-table td {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.cloud-table th {
+  font-family: var(--font-display);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  color: var(--text-dim);
 }
 
 .cloud-table th:first-child,
 .cloud-table td:first-child {
   text-align: left;
   color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
 }
 
 .cloud-table .blended-row td {
@@ -634,23 +996,27 @@ button {
 }
 
 .agreement-badge {
-  font-size: 0.85rem;
-  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.25rem 0.65rem;
   border-radius: 999px;
   border: 1px solid var(--border);
 }
 
 .agreement-badge.agree {
   color: var(--great);
-  border-color: var(--great);
+  border-color: color-mix(in srgb, var(--great) 70%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--great) 20%, transparent);
 }
 .agreement-badge.mixed {
   color: var(--fair);
-  border-color: var(--fair);
+  border-color: color-mix(in srgb, var(--fair) 70%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--fair) 20%, transparent);
 }
 .agreement-badge.disagree {
   color: var(--poor);
-  border-color: var(--poor);
+  border-color: color-mix(in srgb, var(--poor) 70%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--poor) 20%, transparent);
 }
 
 .score-breakdown {
@@ -664,8 +1030,8 @@ button {
 .score-veto-note {
   margin-top: 1rem;
   padding: 0.6rem 0.75rem;
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+  border: 1px solid var(--glass-border);
   border-radius: 6px;
   color: var(--text-muted);
   font-size: 0.8rem;
@@ -681,8 +1047,10 @@ button {
   bottom: 5rem;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
   color: var(--text-primary);
   padding: 0.65rem 1.25rem;
   border-radius: 999px;
@@ -691,7 +1059,9 @@ button {
   white-space: nowrap;
   max-width: calc(100vw - 2rem);
   text-align: center;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
 .notif-active {
@@ -707,6 +1077,7 @@ button {
   height: 7px;
   background: var(--great);
   border-radius: 50%;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--great) 80%, transparent);
   pointer-events: none;
 }
 
@@ -719,7 +1090,7 @@ button {
   bottom: 1rem;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--accent);
+  background: linear-gradient(180deg, var(--accent), var(--accent-dim));
   color: var(--bg-primary);
   border: none;
   border-radius: 999px;
@@ -727,5 +1098,47 @@ button {
   font-weight: 600;
   font-size: 0.9rem;
   z-index: 70;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow:
+    0 0 20px color-mix(in srgb, var(--accent) 35%, transparent),
+    0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* ---------------------------------------------------------------------
+   Fallbacks + accessibility
+--------------------------------------------------------------------- */
+
+/* If backdrop-filter isn't available, thicken the glass so text stays readable. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root,
+  .red-mode {
+    --glass-bg: var(--bg-card);
+    --glass-bg-strong: var(--bg-card);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::after {
+    animation: none;
+  }
+
+  .verdict-ring-great::after {
+    animation: none;
+    opacity: 0.4;
+  }
+
+  .outlook-expanded:not([hidden]) {
+    animation: none;
+  }
+
+  .icon-btn,
+  .hour-card,
+  .primary-btn,
+  .secondary-btn {
+    transition: none;
+  }
+
+  .icon-btn:hover,
+  .hour-card.dark:hover {
+    transform: none;
+  }
 }

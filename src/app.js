@@ -72,6 +72,7 @@ export class App {
       <main id="main-content">
         <section id="tonight-panel" class="panel" hidden>
           <h2 class="panel-title">Tonight</h2>
+          <div id="tonight-hero" class="tonight-hero"></div>
           <div class="ephemeris-banner">
             <div class="ephemeris-item"><span class="ephemeris-icon">🌑</span><span id="astro-dark-range"></span></div>
             <div class="ephemeris-item"><span class="ephemeris-icon">🌕</span><span id="moon-range"></span></div>
@@ -424,6 +425,15 @@ export class App {
   renderTonight(night) {
     this.root.querySelector('#tonight-panel').removeAttribute('hidden')
 
+    const avgScore = night.nightAvg.score
+    const heroVerdict = scoreToVerdict(avgScore)
+    this.root.querySelector('#tonight-hero').innerHTML = `
+      <div class="score-ring verdict-ring-${heroVerdict}">
+        <span class="score-ring-value">${avgScore !== null ? Math.round(avgScore) : '—'}</span>
+        <span class="score-ring-verdict verdict-text-${heroVerdict}">${VERDICT_LABEL[heroVerdict] ?? ''}</span>
+      </div>
+      <p class="score-ring-caption">Tonight&#39;s dark-hours average</p>`
+
     this.root.querySelector('#astro-dark-range').textContent =
       night.astroStart && night.astroEnd
         ? `Astro Dark: ${formatTime(night.astroStart)} – ${formatTime(night.astroEnd)}`
@@ -455,7 +465,7 @@ export class App {
         const avgScore = night.nightAvg.score
         const verdict = scoreToVerdict(avgScore)
         return `
-        <div class="outlook-card" data-night-index="${nightIndex}">
+        <div class="outlook-card outlook-verdict-${verdict}" data-night-index="${nightIndex}">
           <button class="outlook-summary" data-action="toggle" data-night-index="${nightIndex}">
             <span class="outlook-date">${formatNightDate(night.date)}</span>
             <span class="outlook-score-badge verdict-${verdict}">${avgScore !== null ? Math.round(avgScore) : '—'}</span>
