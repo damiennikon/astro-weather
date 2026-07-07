@@ -470,9 +470,9 @@ export class App {
             <span class="outlook-date">${formatNightDate(night.date)}</span>
             <span class="outlook-score-badge verdict-${verdict}">${avgScore !== null ? Math.round(avgScore) : '—'}</span>
             <span class="outlook-stats">
-              ☁ ${formatPercent(night.nightAvg.cloud)}
-              💧 ${formatPercent(night.nightAvg.humidity)}
-              🌕 ${formatPercent(night.nightAvg.moonIllum !== null ? night.nightAvg.moonIllum * 100 : null)}
+              <span class="outlook-stat">☁ ${formatPercent(night.nightAvg.cloud)}</span>
+              <span class="outlook-stat">💧 ${formatPercent(night.nightAvg.humidity)}</span>
+              <span class="outlook-stat">🌕 ${formatPercent(night.nightAvg.moonIllum !== null ? night.nightAvg.moonIllum * 100 : null)}</span>
             </span>
           </button>
           <div class="outlook-expanded" ${expanded ? '' : 'hidden'}>
