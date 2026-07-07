@@ -35,34 +35,53 @@ export function scoreHour({ cloud, moonIllum, moonAlt, humidity, temp, dewpoint,
     }
   }
 
+  // Humidity / dew / wind are null-guarded: JS relational coercion would otherwise
+  // score a missing metric as perfect (null < 50 is true). A null component is
+  // excluded and the remaining weights renormalised — same principle as the model
+  // blend, which redistributes weight across whichever models actually have data.
+
   // Humidity (15%)
-  let humidScore
-  if (humidity < 50) humidScore = 100
-  else if (humidity < 65) humidScore = 75
-  else if (humidity < 75) humidScore = 50
-  else if (humidity < 85) humidScore = 25
-  else humidScore = 10
+  let humidScore = null
+  if (humidity !== null && humidity !== undefined) {
+    if (humidity < 50) humidScore = 100
+    else if (humidity < 65) humidScore = 75
+    else if (humidity < 75) humidScore = 50
+    else if (humidity < 85) humidScore = 25
+    else humidScore = 10
+  }
 
   // Dew spread (10%)
-  const dewSpread = temp - dewpoint
-  let dewScore
-  if (dewSpread > 8) dewScore = 100
-  else if (dewSpread > 5) dewScore = 70
-  else if (dewSpread > 3) dewScore = 40
-  else if (dewSpread > 1) dewScore = 20
-  else dewScore = 10
+  let dewScore = null
+  if (temp !== null && temp !== undefined && dewpoint !== null && dewpoint !== undefined) {
+    const dewSpread = temp - dewpoint
+    if (dewSpread > 8) dewScore = 100
+    else if (dewSpread > 5) dewScore = 70
+    else if (dewSpread > 3) dewScore = 40
+    else if (dewSpread > 1) dewScore = 20
+    else dewScore = 10
+  }
 
   // Wind (10%)
-  let windScore
-  if (windspeed <= 10) windScore = 100
-  else if (windspeed <= 20) windScore = 75
-  else if (windspeed <= 30) windScore = 40
-  else if (windspeed <= 35) windScore = 20
-  else windScore = 10
+  let windScore = null
+  if (windspeed !== null && windspeed !== undefined) {
+    if (windspeed <= 10) windScore = 100
+    else if (windspeed <= 20) windScore = 75
+    else if (windspeed <= 30) windScore = 40
+    else if (windspeed <= 35) windScore = 20
+    else windScore = 10
+  }
 
-  const score = Math.round(
-    cloudScore * 0.35 + moonScore * 0.3 + humidScore * 0.15 + dewScore * 0.1 + windScore * 0.1
-  )
+  // Integer weight units so the all-present case divides by exactly 100 and
+  // reproduces the original weighted sum bit-for-bit.
+  const parts = [
+    [cloudScore, 35],
+    [moonScore, 30],
+    [humidScore, 15],
+    [dewScore, 10],
+    [windScore, 10],
+  ].filter(([value]) => value !== null)
+  const totalWeight = parts.reduce((sum, [, weight]) => sum + weight, 0)
+  const score = Math.round(parts.reduce((sum, [value, weight]) => sum + value * weight, 0) / totalWeight)
 
   let verdict
   if (score >= 85) verdict = 'great'

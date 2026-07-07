@@ -60,23 +60,106 @@ async function runScheduler(env) {
   }
 }
 
-async function fetchForecast(lat, lng) {
-  const vars = 'cloudcover_low,cloudcover_mid,cloudcover_high,temperature_2m,relativehumidity_2m,dewpoint_2m,windspeed_10m'
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
-              `&hourly=${vars}&models=ecmwf_ifs025,icon_global,ukmo_seamless` +
-              `&timezone=Australia%2FBrisbane&forecast_days=4&wind_speed_unit=kmh&temperature_unit=celsius`
-  try {
-    const res = await fetch(url)
-    return await res.json()
-  } catch {
-    return null
+const HOURLY_VARS = 'cloudcover_low,cloudcover_mid,cloudcover_high,temperature_2m,relativehumidity_2m,dewpoint_2m,windspeed_10m'
+const MODELS = { ecmwf: 'ecmwf_ifs025', ukmo: 'ukmo_seamless', icon: 'icon_global' }
+
+// One request PER model, matching the browser weatherWorker. A combined
+// multi-model request suffixes every hourly field with the model id
+// (cloudcover_low_ecmwf_ifs025, ...), so plain field reads come back
+// undefined and the scoring runs entirely on fallback values.
+export async function fetchForecast(lat, lng) {
+  const fetchModel = async (model) => {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
+                `&hourly=${HOURLY_VARS}&models=${model}` +
+                `&timezone=Australia%2FBrisbane&forecast_days=4&wind_speed_unit=kmh&temperature_unit=celsius`
+    try {
+      const res = await fetch(url)
+      return await res.json()
+    } catch {
+      return null
+    }
   }
+
+  const [ecmwf, ukmo, icon] = await Promise.all([
+    fetchModel(MODELS.ecmwf),
+    fetchModel(MODELS.ukmo),
+    fetchModel(MODELS.icon),
+  ])
+  if (!ecmwf && !ukmo && !icon) return null
+  return { ecmwf, ukmo, icon }
 }
 
-function findGoodNight(forecast) {
-  const hours = forecast.hourly
-  const times = hours.time.map(t => new Date(t))
+// --- Blending helpers — these mirror weatherWorker.js so the notification
+// trigger and the app UI agree about cloud cover. ---
 
+function indexHourly(response) {
+  const map = new Map()
+  const times = response?.hourly?.time ?? []
+  times.forEach((t, i) => map.set(t, i))
+  return map
+}
+
+function readHourly(response, index, key, field) {
+  const i = index.get(key)
+  if (i === undefined) return null
+  const v = response?.hourly?.[field]?.[i]
+  return v === undefined || v === null ? null : v
+}
+
+function blendCloud(ecmwf, ukmo, icon) {
+  const models = [ecmwf, ukmo, icon].filter((v) => v !== null && v !== undefined)
+  if (models.length === 0) return null
+
+  let weighted = 0
+  let totalWeight = 0
+  if (ecmwf != null) {
+    weighted += ecmwf * 0.5
+    totalWeight += 0.5
+  }
+  if (ukmo != null) {
+    weighted += ukmo * 0.3
+    totalWeight += 0.3
+  }
+  if (icon != null) {
+    weighted += icon * 0.2
+    totalWeight += 0.2
+  }
+  const avg = weighted / totalWeight
+
+  const spread = Math.max(...models) - Math.min(...models)
+  if (spread > 30) {
+    return Math.min(...models) + 0.7 * spread // Skew pessimistic
+  }
+  return avg
+}
+
+// Overlap (probabilistic independent-layers) formula, not an additive sum —
+// same as weatherWorker.js combineCloudLayers.
+function combineCloudLayers(low, mid, high) {
+  if (low === null && mid === null && high === null) return null
+  const clearSky = (1 - (low ?? 0) / 100) * (1 - (mid ?? 0) / 100) * (1 - (high ?? 0) / 100)
+  return 100 * (1 - clearSky)
+}
+
+function average(values) {
+  const valid = values.filter((v) => v !== null && v !== undefined)
+  if (valid.length === 0) return null
+  return valid.reduce((s, v) => s + v, 0) / valid.length
+}
+
+// Scores the 3 candidate nights (tonight, tomorrow, day after) and returns
+// per-night averages. Exported separately from findGoodNight so it can be
+// exercised against live data without a subscription round-trip.
+export function scoreNights(forecast) {
+  const { ecmwf, ukmo, icon } = forecast
+  const reference = ecmwf ?? ukmo ?? icon
+  const refTimes = reference?.hourly?.time ?? []
+  const times = refTimes.map((t) => new Date(t))
+  const ecmwfIndex = indexHourly(ecmwf)
+  const ukmoIndex = indexHourly(ukmo)
+  const iconIndex = indexHourly(icon)
+
+  const nights = []
   for (let dayOffset = 0; dayOffset < 3; dayOffset++) {
     const nightDate = new Date()
     nightDate.setDate(nightDate.getDate() + dayOffset)
@@ -90,22 +173,54 @@ function findGoodNight(forecast) {
       return acc
     }, [])
 
-    if (darkHours.length === 0) continue
-
     let totalScore = 0
     let count = 0
     let totalCloud = 0
 
     for (const i of darkHours) {
-      const cloud = Math.min(100,
-        (hours.cloudcover_low?.[i] ?? 0) +
-        (hours.cloudcover_mid?.[i] ?? 0) +
-        (hours.cloudcover_high?.[i] ?? 0)
+      const key = refTimes[i]
+
+      const cloudLow = blendCloud(
+        readHourly(ecmwf, ecmwfIndex, key, 'cloudcover_low'),
+        readHourly(ukmo, ukmoIndex, key, 'cloudcover_low'),
+        readHourly(icon, iconIndex, key, 'cloudcover_low')
       )
-      const humidity  = hours.relativehumidity_2m?.[i] ?? 50
-      const temp      = hours.temperature_2m?.[i] ?? 20
-      const dewpoint  = hours.dewpoint_2m?.[i] ?? 15
-      const windspeed = hours.windspeed_10m?.[i] ?? 10
+      const cloudMid = blendCloud(
+        readHourly(ecmwf, ecmwfIndex, key, 'cloudcover_mid'),
+        readHourly(ukmo, ukmoIndex, key, 'cloudcover_mid'),
+        readHourly(icon, iconIndex, key, 'cloudcover_mid')
+      )
+      const cloudHigh = blendCloud(
+        readHourly(ecmwf, ecmwfIndex, key, 'cloudcover_high'),
+        readHourly(ukmo, ukmoIndex, key, 'cloudcover_high'),
+        readHourly(icon, iconIndex, key, 'cloudcover_high')
+      )
+      const cloud = combineCloudLayers(cloudLow, cloudMid, cloudHigh)
+
+      // No model has data for this hour — skip it rather than scoring
+      // fabricated values.
+      if (cloud === null) continue
+
+      const humidity = average([
+        readHourly(ecmwf, ecmwfIndex, key, 'relativehumidity_2m'),
+        readHourly(ukmo, ukmoIndex, key, 'relativehumidity_2m'),
+        readHourly(icon, iconIndex, key, 'relativehumidity_2m'),
+      ])
+      const temp = average([
+        readHourly(ecmwf, ecmwfIndex, key, 'temperature_2m'),
+        readHourly(ukmo, ukmoIndex, key, 'temperature_2m'),
+        readHourly(icon, iconIndex, key, 'temperature_2m'),
+      ])
+      const dewpoint = average([
+        readHourly(ecmwf, ecmwfIndex, key, 'dewpoint_2m'),
+        readHourly(ukmo, ukmoIndex, key, 'dewpoint_2m'),
+        readHourly(icon, iconIndex, key, 'dewpoint_2m'),
+      ])
+      const windspeed = average([
+        readHourly(ecmwf, ecmwfIndex, key, 'windspeed_10m'),
+        readHourly(ukmo, ukmoIndex, key, 'windspeed_10m'),
+        readHourly(icon, iconIndex, key, 'windspeed_10m'),
+      ])
 
       // Conservative moon estimate — no altitude, assume above horizon
       const moonIllum = 0.3
@@ -119,13 +234,22 @@ function findGoodNight(forecast) {
 
     if (count === 0) continue
 
-    const avgScore = Math.round(totalScore / count)
-    const avgCloud = Math.round(totalCloud / count)
+    nights.push({
+      dayOffset,
+      label: dayOffset === 0 ? 'Tonight' : dayOffset === 1 ? 'Tomorrow night' : `In ${dayOffset} nights`,
+      score: Math.round(totalScore / count),
+      cloud: Math.round(totalCloud / count),
+      hourCount: count,
+    })
+  }
+  return nights
+}
 
-    if (avgScore >= 65) {
-      const verdict = avgScore >= 85 ? 'GREAT' : 'GOOD'
-      const label   = dayOffset === 0 ? 'Tonight' : dayOffset === 1 ? 'Tomorrow night' : `In ${dayOffset} nights`
-      return { score: avgScore, cloud: avgCloud, moon: '?', verdict, label }
+export function findGoodNight(forecast) {
+  for (const night of scoreNights(forecast)) {
+    if (night.score >= 65) {
+      const verdict = night.score >= 85 ? 'GREAT' : 'GOOD'
+      return { score: night.score, cloud: night.cloud, moon: '?', verdict, label: night.label }
     }
   }
   return null
