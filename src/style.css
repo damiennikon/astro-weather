@@ -960,10 +960,22 @@ input:focus-visible {
   font-size: 0.8rem;
 }
 
+.search-status {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin-top: 0.5rem;
+  line-height: 1.4;
+}
+
 .location-error {
   color: var(--poor);
   font-size: 0.85rem;
   margin-top: 0.75rem;
+}
+
+.primary-btn:disabled {
+  opacity: 0.65;
+  cursor: default;
 }
 
 /* ---------------------------------------------------------------------

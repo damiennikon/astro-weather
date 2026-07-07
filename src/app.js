@@ -107,6 +107,7 @@ export class App {
           <div class="search-wrap">
             <input id="location-search" type="text" placeholder="Search for a town or suburb…" autocomplete="off" />
             <div id="search-results" class="search-results" hidden></div>
+            <p id="search-status" class="search-status" hidden></p>
           </div>
           <p id="location-error" class="location-error" hidden></p>
         </div>
@@ -150,9 +151,19 @@ export class App {
       const query = searchInput.value.trim()
       if (query.length < 2) {
         this.renderSearchResults([])
+        this.setSearchStatus(null)
         return
       }
       debounceTimer = setTimeout(() => this.handleSearch(query), 300)
+    })
+    // Mobile keyboards submit with Enter/"Search" — run the search immediately
+    // instead of leaving the user waiting on a debounce they can't see.
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return
+      e.preventDefault()
+      clearTimeout(debounceTimer)
+      const query = searchInput.value.trim()
+      if (query.length >= 2) this.handleSearch(query)
     })
 
     this.root.querySelector('#tonight-hourly').addEventListener('click', (e) => this.handleHourCardClick(e))
@@ -281,6 +292,7 @@ export class App {
     this.root.querySelector('#location-error').setAttribute('hidden', '')
     this.root.querySelector('#location-search').value = ''
     this.renderSearchResults([])
+    this.setSearchStatus(null)
     prompt.removeAttribute('hidden')
   }
 
@@ -299,19 +311,22 @@ export class App {
       this.showLocationError('Geolocation is not supported in this browser.')
       return
     }
+    const btn = this.root.querySelector('#use-my-location-btn')
+    const originalLabel = btn.textContent
+    btn.disabled = true
+    btn.textContent = '📡 Locating…'
+    this.root.querySelector('#location-error').setAttribute('hidden', '')
+
+    let position
     try {
-      const position = await new Promise((resolve, reject) =>
+      position = await new Promise((resolve, reject) =>
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           timeout: 20000,
           maximumAge: 60000,
         })
       )
-      const lat = position.coords.latitude
-      const lng = position.coords.longitude
-      const name = await reverseGeocode(lat, lng)
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
-      this.selectLocation({ lat, lng, name, timezone })
     } catch (err) {
+      console.warn('[location] getCurrentPosition failed', err)
       const code = err?.code
       if (code === 1) {
         this.showLocationError('Location access was denied. Enable location permission in your browser settings and try again.')
@@ -320,16 +335,67 @@ export class App {
       } else {
         this.showLocationError('Your location could not be determined. Try searching instead.')
       }
+      btn.disabled = false
+      btn.textContent = originalLabel
+      return
+    }
+
+    try {
+      const lat = position.coords.latitude
+      const lng = position.coords.longitude
+
+      // Reverse geocoding only supplies a display name — it must never block the
+      // forecast. If Nominatim is slow, down, or unreachable, fall back to
+      // showing coordinates and carry on.
+      btn.textContent = '📡 Naming your location…'
+      let name
+      try {
+        name = await reverseGeocode(lat, lng)
+      } catch (err) {
+        console.warn('[location] reverse geocode failed, using coordinates', err)
+        name = formatCoords(lat, lng)
+      }
+
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+      this.selectLocation({ lat, lng, name, timezone })
+    } catch (err) {
+      console.warn('[location] failed after position was acquired', err)
+      this.showLocationError('Your position was found but the forecast could not be started. Please try again.')
+    } finally {
+      btn.disabled = false
+      btn.textContent = originalLabel
     }
   }
 
   async handleSearch(query) {
+    // Guard against out-of-order responses: a slow response for an older query
+    // must not clobber the results of a newer one.
+    const seq = (this._searchSeq = (this._searchSeq ?? 0) + 1)
+    this.setSearchStatus('Searching…')
     try {
       const results = await searchLocations(query)
+      if (seq !== this._searchSeq) return
+      console.log(`[search] "${query}" returned ${results.length} result(s)`)
       this.renderSearchResults(results)
-    } catch {
+      this.setSearchStatus(
+        results.length === 0 ? 'No matching locations found — try the nearest town or suburb.' : null
+      )
+    } catch (err) {
+      if (seq !== this._searchSeq) return
+      console.warn(`[search] "${query}" failed`, err)
       this.renderSearchResults([])
+      this.setSearchStatus('Location search failed — check your connection and try again.')
     }
+  }
+
+  setSearchStatus(message) {
+    const el = this.root.querySelector('#search-status')
+    if (!message) {
+      el.setAttribute('hidden', '')
+      return
+    }
+    el.textContent = message
+    el.removeAttribute('hidden')
   }
 
   renderSearchResults(results) {
@@ -364,7 +430,13 @@ export class App {
   }
 
   selectLocation(location) {
-    saveLocation(location)
+    // localStorage can throw (e.g. private browsing) — persistence failing
+    // should not stop this session's forecast.
+    try {
+      saveLocation(location)
+    } catch (err) {
+      console.warn('[location] could not save location to localStorage', err)
+    }
     this.state.location = location
     this.setLocationLabel(location.name)
     this.closeLocationPrompt()
@@ -581,6 +653,16 @@ function saveLocation(location) {
 // Geocoding
 // ---------------------------------------------------------------------
 
+async function fetchWithTimeout(url, timeoutMs) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function searchLocations(query) {
   const params = new URLSearchParams({
     name: query,
@@ -589,16 +671,34 @@ async function searchLocations(query) {
     format: 'json',
     countryCode: 'AU',
   })
-  const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?${params}`)
+  const url = `https://geocoding-api.open-meteo.com/v1/search?${params}`
+  console.log('[search] requesting', url)
+  const res = await fetchWithTimeout(url, 10000)
+  if (!res.ok) throw new Error(`Geocoding request failed: HTTP ${res.status}`)
   const json = await res.json()
   return json.results ?? []
 }
 
 async function reverseGeocode(lat, lng) {
   const params = new URLSearchParams({ lat, lon: lng, format: 'json' })
-  const res = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`)
+  const res = await fetchWithTimeout(`https://nominatim.openstreetmap.org/reverse?${params}`, 8000)
+  if (!res.ok) throw new Error(`Reverse geocoding failed: HTTP ${res.status}`)
   const json = await res.json()
-  return json.address?.suburb ?? json.address?.city ?? json.display_name ?? 'Unknown location'
+  return (
+    json.address?.suburb ??
+    json.address?.city ??
+    json.address?.town ??
+    json.address?.village ??
+    json.address?.municipality ??
+    json.display_name ??
+    formatCoords(lat, lng)
+  )
+}
+
+function formatCoords(lat, lng) {
+  const latLabel = `${Math.abs(lat).toFixed(2)}°${lat < 0 ? 'S' : 'N'}`
+  const lngLabel = `${Math.abs(lng).toFixed(2)}°${lng < 0 ? 'W' : 'E'}`
+  return `${latLabel}, ${lngLabel}`
 }
 
 // ---------------------------------------------------------------------
