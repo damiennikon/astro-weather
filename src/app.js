@@ -12,12 +12,13 @@ const VERDICT_LABEL = {
   unavailable: 'No Data',
 }
 
-// scoreHour() short-circuits on a hard veto and returns just {score, verdict, vetoed} —
-// no component breakdown, since the veto overrides the weighted formula entirely.
+const MODEL_LABEL = { ecmwf: 'ECMWF', ukmo: 'UKMO', icon: 'ICON' }
+
+// Ceilings only ever lower the weighted score, so the component breakdown always
+// applies — these explain why the final score sits below it.
 const VETO_LABEL = {
-  'cloud>70': 'Score capped — cloud cover above 70% overrides the component breakdown.',
-  'cloud>50': 'Score capped — cloud cover above 50% overrides the component breakdown.',
-  brightmoon: 'Score capped — bright moon (>80% illuminated, above the horizon) overrides the component breakdown.',
+  cloud: 'heavy cloud cover',
+  moon: 'a bright moon above the horizon',
 }
 
 export class App {
@@ -70,6 +71,14 @@ export class App {
       </header>
 
       <main id="main-content">
+        <div id="data-notice" class="data-notice" hidden></div>
+
+        <section id="forecast-error" class="panel forecast-error" hidden>
+          <h2 class="panel-title">Forecast unavailable</h2>
+          <p id="forecast-error-detail" class="forecast-error-detail"></p>
+          <button id="forecast-retry-btn" class="primary-btn">Try again</button>
+        </section>
+
         <section id="tonight-panel" class="panel" hidden>
           <h2 class="panel-title">Tonight</h2>
           <div id="tonight-hero" class="tonight-hero"></div>
@@ -143,6 +152,9 @@ export class App {
     this.root.querySelector('#use-my-location-btn').addEventListener('click', () => this.handleUseMyLocation())
     this.root.querySelector('#confidence-modal-close').addEventListener('click', () => this.closeConfidenceModal())
     this.root.querySelector('#satellite-toggle').addEventListener('click', () => this.toggleSatellite())
+    this.root.querySelector('#forecast-retry-btn').addEventListener('click', () => {
+      if (this.state.location) this.fetchForecast(this.state.location)
+    })
 
     const searchInput = this.root.querySelector('#location-search')
     let debounceTimer = null
@@ -474,14 +486,61 @@ export class App {
       this.showLoading(true, event.data.step)
     } else if (type === 'FORECAST_READY') {
       this.state.nights = event.data.nights
+      this.state.meta = event.data.meta ?? null
       this.showLoading(false)
+      this.showForecastError(null)
+      this.renderDataNotice(this.state.meta)
       this.renderTonight(event.data.nights[0])
       this.renderOutlook(event.data.nights)
     } else if (type === 'FORECAST_ERROR') {
       this.showLoading(false)
-      this.showLocationError(`Forecast failed: ${event.data.message}`)
-      this.openLocationPrompt(true)
+      // An upstream outage is not a bad location — reopening the picker just asks
+      // the user to re-enter a location that was never the problem.
+      if (event.data.code === 'UPSTREAM_UNAVAILABLE') {
+        this.showForecastError(event.data)
+      } else {
+        this.showLocationError(`Forecast failed: ${event.data.message}`)
+        this.openLocationPrompt(true)
+      }
     }
+  }
+
+  // Every forecast model failed. Show a real error state and hide the panels
+  // outright — stale or empty panels would read as "tonight is very poor".
+  showForecastError(error) {
+    const panel = this.root.querySelector('#forecast-error')
+    if (!error) {
+      panel.setAttribute('hidden', '')
+      return
+    }
+    this.state.nights = null
+    this.state.meta = null
+    this.root.querySelector('#tonight-panel').setAttribute('hidden', '')
+    this.root.querySelector('#outlook-panel').setAttribute('hidden', '')
+    this.root.querySelector('#data-notice').setAttribute('hidden', '')
+    const detail = (error.failures ?? []).map((f) => `${MODEL_LABEL[f.model] ?? f.model}: ${f.reason}`).join(' · ')
+    this.root.querySelector('#forecast-error-detail').textContent = detail
+      ? `No weather model could be reached. ${detail}`
+      : `No weather model could be reached. ${error.message ?? ''}`
+    panel.removeAttribute('hidden')
+  }
+
+  // One or two models are missing: the blend still runs on whatever arrived, but the
+  // user is told which opinions are absent and how much confidence that costs.
+  renderDataNotice(meta) {
+    const el = this.root.querySelector('#data-notice')
+    if (!meta?.degraded) {
+      el.setAttribute('hidden', '')
+      return
+    }
+    const missing = meta.missing.map((m) => MODEL_LABEL[m] ?? m).join(' and ')
+    const present = meta.available.map((m) => MODEL_LABEL[m] ?? m).join(' + ')
+    const pct = Math.round(meta.weightCoverage * 100)
+    el.innerHTML = `
+      <span class="data-notice-icon" aria-hidden="true">⚠</span>
+      <span><strong>Reduced confidence</strong> — ${escapeHtml(missing)} unavailable.
+      Blended from ${escapeHtml(present)} only (${pct}% of the usual ensemble weight).</span>`
+    el.removeAttribute('hidden')
   }
 
   showLoading(visible, step) {
@@ -881,6 +940,9 @@ function renderConfidenceModalBody(hour) {
     agree: '<span class="agreement-badge agree">✓ Models Agree</span>',
     mixed: '<span class="agreement-badge mixed">⚠ Mixed</span>',
     disagree: '<span class="agreement-badge disagree">✗ Low Confidence</span>',
+    // Only one model returned data — there is no agreement to report, and saying
+    // "Models Agree" off a single opinion would overstate the confidence.
+    single: '<span class="agreement-badge disagree">⚠ Single Model Only</span>',
   }[hour.agreement]
 
   const modelRow = (label, low, mid, high, total) => `
@@ -906,6 +968,12 @@ function renderConfidenceModalBody(hour) {
       </tbody>
     </table>`
 
+  const capNote = hour.vetoed
+    ? `<p class="score-veto-note">Weighted score ${hour.uncappedScore} capped to ${hour.cap} by ${
+        VETO_LABEL[hour.vetoed] ?? 'a limiting condition'
+      }.</p>`
+    : ''
+
   const scoreBars = hour.isDark
     ? hour.components
       ? `
@@ -915,8 +983,8 @@ function renderConfidenceModalBody(hour) {
         ${scoreMetric('Humidity', 15, hour.components.humidScore)}
         ${scoreMetric('Dew', 10, hour.components.dewScore)}
         ${scoreMetric('Wind', 10, hour.components.windScore)}
-      </div>`
-      : `<p class="score-veto-note">${VETO_LABEL[hour.vetoed] ?? 'Score capped by a hard veto condition — the weighted component breakdown does not apply.'}</p>`
+      </div>${capNote}`
+      : '<p class="score-veto-note">No model data for this hour — it is excluded from the night average.</p>'
     : ''
 
   return `
@@ -931,7 +999,7 @@ function scoreMetric(label, weightPct, value) {
   return `
     <div class="metric-card">
       <span class="metric-label">${label} ${weightPct}%</span>
-      <span class="metric-value">${value ?? '—'}</span>
+      <span class="metric-value">${value !== null && value !== undefined ? Math.round(value) : '—'}</span>
       <span class="metric-sublabel verdict-text-${verdict}">${METRIC_SUBLABEL[verdict] ?? '—'}</span>
     </div>`
 }

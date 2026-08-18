@@ -42,7 +42,10 @@ export async function requestAndSubscribe() {
       subscription,
       lat:          location.lat,
       lng:          location.lng,
-      locationName: location.name
+      locationName: location.name,
+      // Without this the scheduler cannot tell which calendar day a night belongs
+      // to at the site, and falls back to a hardcoded east-coast zone.
+      timezone:     location.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
     })
   })
 
