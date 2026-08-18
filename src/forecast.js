@@ -23,7 +23,7 @@ const UPPER_AIR_MODELS = new Set(['ecmwf', 'icon']) // UKMO seamless has no 250h
 // a fixed night count drifts stale. MAX_NIGHTS is just a generous candidate cap;
 // buildForecast() trims the actual returned nights to whichever ones fall fully
 // inside every model's real (non-null) data coverage — see findCoverageEnd().
-const MAX_NIGHTS = 8
+const DEFAULT_MAX_NIGHTS = 8
 const DISPLAY_HOURS = 14 // 17:00 -> 07:00
 const GALACTIC_CENTER_RA = 17.76 // hours
 const GALACTIC_CENTER_DEC = -29.0 // degrees
@@ -140,8 +140,9 @@ export async function buildForecast(lat, lng, timezone, options = {}) {
   const coverageEnd = minCoverageEnd(fetched.available.map((id) => fetched.responses[id]))
 
   const today = zonedParts(options.now ?? new Date(), tz)
+  const maxNights = options.maxNights ?? DEFAULT_MAX_NIGHTS
   const candidates = []
-  for (let n = 0; n < MAX_NIGHTS; n++) {
+  for (let n = 0; n < maxNights; n++) {
     candidates.push(buildNight(addDays(today, n), tz, observer, models))
   }
 

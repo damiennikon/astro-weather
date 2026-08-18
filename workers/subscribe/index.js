@@ -14,7 +14,7 @@ export default {
 
     if (request.method === 'POST' && url.pathname === '/subscribe') {
       const body = await request.json()
-      const { subscription, lat, lng, locationName } = body
+      const { subscription, lat, lng, locationName, timezone } = body
 
       if (!subscription?.endpoint || lat == null || lng == null) {
         return new Response(JSON.stringify({ error: 'Missing required fields' }), {
@@ -34,6 +34,7 @@ export default {
         lat,
         lng,
         locationName: locationName ?? 'Unknown',
+        timezone: typeof timezone === 'string' ? timezone : null,
         lastNotified: null,
         subscribedAt: new Date().toISOString()
       })
