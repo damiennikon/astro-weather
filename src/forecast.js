@@ -364,12 +364,16 @@ function buildHour(time, isDark, astroEnd, observer, models) {
   let verdict = 'daylight'
   let vetoed = null
   let components = null
+  let uncappedScore = null
+  let cap = null
 
   if (isDark) {
     const result = scoreHour({ cloud, moonIllum, moonAlt, humidity, temp, dewpoint, windspeed })
     score = result.score
     verdict = result.verdict
     vetoed = result.vetoed ?? null
+    uncappedScore = result.uncappedScore ?? null
+    cap = result.cap ?? null
     components =
       result.cloudScore !== undefined
         ? {
@@ -406,6 +410,8 @@ function buildHour(time, isDark, astroEnd, observer, models) {
     verdict,
     vetoed,
     components,
+    uncappedScore,
+    cap,
   }
 }
 

@@ -12,14 +12,13 @@ const VERDICT_LABEL = {
   unavailable: 'No Data',
 }
 
-// scoreHour() short-circuits on a hard veto and returns just {score, verdict, vetoed} —
-// no component breakdown, since the veto overrides the weighted formula entirely.
 const MODEL_LABEL = { ecmwf: 'ECMWF', ukmo: 'UKMO', icon: 'ICON' }
 
+// Ceilings only ever lower the weighted score, so the component breakdown always
+// applies — these explain why the final score sits below it.
 const VETO_LABEL = {
-  'cloud>70': 'Score capped — cloud cover above 70% overrides the component breakdown.',
-  'cloud>50': 'Score capped — cloud cover above 50% overrides the component breakdown.',
-  brightmoon: 'Score capped — bright moon (>80% illuminated, above the horizon) overrides the component breakdown.',
+  cloud: 'heavy cloud cover',
+  moon: 'a bright moon above the horizon',
 }
 
 export class App {
@@ -969,6 +968,12 @@ function renderConfidenceModalBody(hour) {
       </tbody>
     </table>`
 
+  const capNote = hour.vetoed
+    ? `<p class="score-veto-note">Weighted score ${hour.uncappedScore} capped to ${hour.cap} by ${
+        VETO_LABEL[hour.vetoed] ?? 'a limiting condition'
+      }.</p>`
+    : ''
+
   const scoreBars = hour.isDark
     ? hour.components
       ? `
@@ -978,8 +983,8 @@ function renderConfidenceModalBody(hour) {
         ${scoreMetric('Humidity', 15, hour.components.humidScore)}
         ${scoreMetric('Dew', 10, hour.components.dewScore)}
         ${scoreMetric('Wind', 10, hour.components.windScore)}
-      </div>`
-      : `<p class="score-veto-note">${VETO_LABEL[hour.vetoed] ?? 'Score capped by a hard veto condition — the weighted component breakdown does not apply.'}</p>`
+      </div>${capNote}`
+      : '<p class="score-veto-note">No model data for this hour — it is excluded from the night average.</p>'
     : ''
 
   return `
@@ -994,7 +999,7 @@ function scoreMetric(label, weightPct, value) {
   return `
     <div class="metric-card">
       <span class="metric-label">${label} ${weightPct}%</span>
-      <span class="metric-value">${value ?? '—'}</span>
+      <span class="metric-value">${value !== null && value !== undefined ? Math.round(value) : '—'}</span>
       <span class="metric-sublabel verdict-text-${verdict}">${METRIC_SUBLABEL[verdict] ?? '—'}</span>
     </div>`
 }
