@@ -1,7 +1,10 @@
 // src/scoring.js  — shared between browser worker and CF scheduler
 
 export function scoreHour({ cloud, moonIllum, moonAlt, humidity, temp, dewpoint, windspeed }) {
-  if (cloud === null || cloud === undefined) return { score: 0, verdict: 'unavailable' }
+  // A null score, not 0. Scoring missing data as zero turns "we don't know" into a
+  // confident "very poor", and averaging those zeros into a night drags the whole
+  // night down. Callers must exclude null scores rather than treat them as bad.
+  if (cloud === null || cloud === undefined) return { score: null, verdict: 'unavailable' }
   if (cloud > 70) return { score: 20, verdict: 'verypoor', vetoed: 'cloud>70' }
   if (cloud > 50) return { score: 35, verdict: 'poor', vetoed: 'cloud>50' }
 
@@ -93,7 +96,8 @@ export function scoreHour({ cloud, moonIllum, moonAlt, humidity, temp, dewpoint,
   return { score, verdict, cloudScore, moonScore, humidScore, dewScore, windScore }
 }
 
-export function findOptimalWindow(scoredHours) {
+export function findOptimalWindow(hours) {
+  const scoredHours = hours.filter((h) => h.score !== null && h.score !== undefined)
   for (const blockSize of [3, 2, 1]) {
     let best = null
     for (let i = 0; i <= scoredHours.length - blockSize; i++) {

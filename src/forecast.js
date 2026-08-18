@@ -63,9 +63,20 @@ export function buildUrl(lat, lng, timezone, modelId, includeUpper) {
 // null" and scores out as a confident 0/100. Reject those here instead.
 export async function fetchModel(url, fetchImpl = fetch) {
   const res = await fetchImpl(url)
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const json = await res.json()
-  if (json?.error) throw new Error(String(json.reason ?? 'upstream error'))
+
+  // Open-Meteo puts the useful diagnosis in the body ({error, reason}) even on a
+  // 4xx, so parse before deciding what to report. A body that will not parse at
+  // all falls back to the status code.
+  let json = null
+  try {
+    json = await res.json()
+  } catch {
+    throw new Error(`HTTP ${res.status} (unparseable response)`)
+  }
+
+  if (!res.ok || json?.error) {
+    throw new Error(String(json?.reason ?? `HTTP ${res.status}`))
+  }
   if (!Array.isArray(json?.hourly?.time) || json.hourly.time.length === 0) {
     throw new Error('response contained no hourly data')
   }
