@@ -3,6 +3,10 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  # Run the gate on PRs too, so a branch is known-green before it reaches main.
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,7 +18,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # TZ is pinned in the npm script: the timezone regression has to run under a
+      # viewer zone that differs from the sites it exercises, or it passes trivially.
+      - name: Test
+        run: npm test
+
   build-and-deploy:
+    # Deploy is gated on the tests, not merely ordered after them — if `test` fails,
+    # this job never starts and the workflow fails without publishing anything.
+    needs: test
+    # Only a real push to main publishes. PR and manual runs stop at the test job.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
