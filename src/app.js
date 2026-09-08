@@ -2,6 +2,7 @@ import { requestAndSubscribe, unsubscribe, getSubscriptionStatus } from './notif
 
 const STORAGE_KEY = 'astro-location'
 const RED_MODE_KEY = 'astro-red-mode'
+const DISCLAIMER_DISMISSED_KEY = 'astro-disclaimer-dismissed'
 
 const VERDICT_LABEL = {
   great: 'Great',
@@ -39,6 +40,7 @@ export class App {
     this.bindShellEvents()
     this.applyStoredRedMode()
     this.initBellState()
+    this.maybeShowDisclaimer()
 
     const saved = loadLocation()
     if (saved) {
@@ -108,6 +110,15 @@ export class App {
         <p id="loading-step" class="loading-step">Loading…</p>
       </div>
 
+      <div id="disclaimer-modal" class="modal-overlay disclaimer-modal" hidden>
+        <div class="modal-card">
+          <h2>Before You Head Out</h2>
+          <p class="disclaimer-text">This app is an assistant to help determine whether it is ok to head out to shoot the cosmos. Data is obtained and combined from 3 sources, and sometimes they get it wrong. I would still stick your head outside and look up before heading out.</p>
+          <button id="disclaimer-ok-btn" class="primary-btn">Got it</button>
+          <button id="disclaimer-dont-show-btn" class="link-btn">Don't show this again</button>
+        </div>
+      </div>
+
       <div id="location-prompt" class="modal-overlay" hidden>
         <div class="modal-card">
           <button id="location-prompt-close" class="modal-close" aria-label="Close" hidden>×</button>
@@ -147,6 +158,8 @@ export class App {
   bindShellEvents() {
     this.root.querySelector('#red-mode-btn').addEventListener('click', () => this.toggleRedMode())
     this.root.querySelector('#notif-btn').addEventListener('click', () => this.handleNotificationBell())
+    this.root.querySelector('#disclaimer-ok-btn').addEventListener('click', () => this.dismissDisclaimer(false))
+    this.root.querySelector('#disclaimer-dont-show-btn').addEventListener('click', () => this.dismissDisclaimer(true))
     this.root.querySelector('#change-location-btn').addEventListener('click', () => this.openLocationPrompt(true))
     this.root.querySelector('#location-prompt-close').addEventListener('click', () => this.closeLocationPrompt())
     this.root.querySelector('#use-my-location-btn').addEventListener('click', () => this.handleUseMyLocation())
@@ -204,6 +217,26 @@ export class App {
   toggleRedMode() {
     const enabled = document.body.classList.toggle('red-mode')
     localStorage.setItem(RED_MODE_KEY, String(enabled))
+  }
+
+  // ---------------------------------------------------------------------
+  // Disclaimer modal
+  // ---------------------------------------------------------------------
+
+  maybeShowDisclaimer() {
+    if (localStorage.getItem(DISCLAIMER_DISMISSED_KEY) === 'true') return
+    this.root.querySelector('#disclaimer-modal').removeAttribute('hidden')
+  }
+
+  dismissDisclaimer(permanently) {
+    if (permanently) {
+      try {
+        localStorage.setItem(DISCLAIMER_DISMISSED_KEY, 'true')
+      } catch (err) {
+        console.warn('[disclaimer] could not save dismissal to localStorage', err)
+      }
+    }
+    this.root.querySelector('#disclaimer-modal').setAttribute('hidden', '')
   }
 
   // ---------------------------------------------------------------------

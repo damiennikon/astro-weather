@@ -978,6 +978,22 @@ input:focus-visible {
   cursor: default;
 }
 
+.disclaimer-modal {
+  z-index: 70;
+}
+
+.disclaimer-text {
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0.75rem 0 0;
+}
+
+.disclaimer-modal .link-btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
 /* ---------------------------------------------------------------------
    Confidence modal contents
 --------------------------------------------------------------------- */
