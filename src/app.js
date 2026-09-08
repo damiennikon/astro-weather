@@ -113,7 +113,7 @@ export class App {
       <div id="disclaimer-modal" class="modal-overlay disclaimer-modal" hidden>
         <div class="modal-card">
           <h2>Before You Head Out</h2>
-          <p class="disclaimer-text">This app is an assistant to help determine whether it is ok to head out to shoot the cosmos. Data is obtained and combined from 3 sources, and sometimes they get it wrong. I would still stick your head outside and look up before heading out.</p>
+          <p class="disclaimer-text">AstroWeather is an assistant to help determine whether it is ok to head out to shoot the cosmos. Data is obtained and combined from 3 sources, and sometimes they get it wrong. I would still stick your head outside and look up before heading out.</p>
           <button id="disclaimer-ok-btn" class="primary-btn">Got it</button>
           <button id="disclaimer-dont-show-btn" class="link-btn">Don't show this again</button>
         </div>
