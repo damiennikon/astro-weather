@@ -19,5 +19,13 @@ const updateSW = registerSW({
     setInterval(() => {
       registration.update()
     }, UPDATE_CHECK_INTERVAL_MS)
+
+    // Reopening an installed PWA usually resumes the same suspended page rather
+    // than reloading it, so a deploy that happened while it was backgrounded is
+    // otherwise invisible until the hourly poll above happens to land. Checking
+    // on every resume means a fresh deploy shows up the next time the app is opened.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') registration.update()
+    })
   },
 })

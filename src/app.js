@@ -138,6 +138,13 @@ export class App {
           <button id="confidence-modal-close" class="modal-close" aria-label="Close">×</button>
           <h2 id="confidence-modal-time"></h2>
           <div id="confidence-modal-body"></div>
+          <p class="confidence-modal-footnote">
+            Each hour's score (0–100) blends five factors: Cloud, Moon, Humidity, Dew Spread and Wind. The
+            "wt" percentage under each label is that factor's fixed share of the total — not a live reading — and
+            the number is its own 0–100 score, not a percentage. A low Moon score usually means the moon is bright
+            <em>and</em> above the horizon; if it's below the horizon the Moon always scores 100 regardless of its
+            phase. Severe cloud or moonlight can also cap the final score below the weighted total shown here.
+          </p>
         </div>
       </div>
 
@@ -1031,8 +1038,8 @@ function scoreMetric(label, weightPct, value) {
   const verdict = scoreToVerdict(value)
   return `
     <div class="metric-card">
-      <span class="metric-label">${label} ${weightPct}%</span>
-      <span class="metric-value">${value !== null && value !== undefined ? Math.round(value) : '—'}</span>
+      <span class="metric-label">${label} <span class="metric-weight">(${weightPct}% wt)</span></span>
+      <span class="metric-value">${value !== null && value !== undefined ? Math.round(value) : '—'}<span class="metric-unit">/100</span></span>
       <span class="metric-sublabel verdict-text-${verdict}">${METRIC_SUBLABEL[verdict] ?? '—'}</span>
     </div>`
 }
