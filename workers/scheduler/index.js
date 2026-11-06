@@ -2,6 +2,7 @@ import webpush from 'web-push'
 import { buildForecast } from '../../src/forecast.js'
 import { zonedParts, safeTimeZone, formatYmd } from '../../src/timezone.js'
 import { findGoodNight } from './nightSelection.js'
+import { isAuthorizedTrigger } from './triggerAuth.js'
 
 // Subscriptions taken before the client started sending a timezone have none stored.
 // Every subscriber to date is Australian east-coast, so fall back there rather than
@@ -18,10 +19,22 @@ export default {
   },
 
   async fetch(request, env) {
-    if (new URL(request.url).pathname === '/trigger') {
-      await runScheduler(env)
-      return new Response('Scheduler ran OK', { status: 200 })
+    const url = new URL(request.url)
+    if (request.method === 'POST' && url.pathname === '/trigger') {
+      if (!isAuthorizedTrigger(request, env.SCHEDULER_TRIGGER_SECRET)) {
+        // Do not reveal that an internal trigger endpoint exists to unauthenticated callers.
+        return new Response('Not Found', { status: 404 })
+      }
+
+      try {
+        await runScheduler(env)
+        return new Response('Scheduler ran OK', { status: 200 })
+      } catch (err) {
+        console.error('[scheduler] manual trigger failed', err)
+        return new Response('Scheduler failed', { status: 500 })
+      }
     }
+
     return new Response('Not Found', { status: 404 })
   },
 }
