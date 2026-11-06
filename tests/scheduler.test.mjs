@@ -19,7 +19,7 @@ const CRON_FIRES_AT = new Date('2026-08-28T22:00:00Z')
 
 function clearSkyFetch(startYmd) {
   const body = buildFixture({ timeZone: SITE.tz, startYmd })
-  body.hourly.cloudcover_low = body.hourly.cloudcover_low.map(() => 0)
+  body.hourly.cloud_cover_low = body.hourly.cloud_cover_low.map(() => 0)
   return async () => okResponse(body)
 }
 
