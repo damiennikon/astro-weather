@@ -310,6 +310,12 @@ export function buildNight(ymd, timeZone, observer, models) {
   // Hours with no usable model data score `null`, not 0 — averaging a 0 in would
   // turn missing data into a confident "very poor" verdict.
   const scoredHours = darkHours.filter((h) => h.score !== null)
+  const confidence =
+    scoredHours.length === 0
+      ? 'unavailable'
+      : scoredHours.every((h) => h.confidence === 'full')
+        ? 'full'
+        : 'partial'
   const optimalWindow = findOptimalWindow(scoredHours.map((h) => ({ time: h.time, score: h.score })))
   const nightAvg = {
     score: average(scoredHours.map((h) => h.score)),
@@ -338,6 +344,7 @@ export function buildNight(ymd, timeZone, observer, models) {
     darkHourCount: darkHours.length,
     scoredHourCount: scoredHours.length,
     dataStatus: scoredHours.length === 0 ? 'unavailable' : scoredHours.length < darkHours.length ? 'partial' : 'ok',
+    confidence,
   }
 }
 
@@ -400,6 +407,8 @@ function buildHour(time, isDark, astroEnd, observer, models) {
   let components = null
   let uncappedScore = null
   let cap = null
+  let confidence = isDark ? 'unavailable' : null
+  let missingData = isDark ? ['cloud'] : []
 
   if (isDark) {
     const result = scoreHour({ cloud, moonIllum, moonAlt, humidity, temp, dewpoint, windspeed })
@@ -408,6 +417,8 @@ function buildHour(time, isDark, astroEnd, observer, models) {
     vetoed = result.vetoed ?? null
     uncappedScore = result.uncappedScore ?? null
     cap = result.cap ?? null
+    confidence = result.confidence
+    missingData = result.missingData ?? []
     components =
       result.cloudScore !== undefined
         ? {
@@ -446,6 +457,8 @@ function buildHour(time, isDark, astroEnd, observer, models) {
     components,
     uncappedScore,
     cap,
+    confidence,
+    missingData,
   }
 }
 

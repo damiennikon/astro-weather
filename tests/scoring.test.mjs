@@ -99,8 +99,17 @@ test('caps only ever lower the weighted score', () => {
 })
 
 test('missing metrics still renormalise, and missing cloud is null not zero', () => {
-  assert.equal(scoreHour({ cloud: null, ...NO_MOON, ...IDEAL }).score, null)
+  const unavailable = scoreHour({ cloud: null, ...NO_MOON, ...IDEAL })
+  assert.equal(unavailable.score, null)
+  assert.equal(unavailable.confidence, 'unavailable')
+
   const partial = scoreHour({ cloud: 0, ...NO_MOON, humidity: null, temp: null, dewpoint: null, windspeed: null })
   assert.equal(partial.score, 100, 'cloud+moon alone should renormalise to 100 under perfect conditions')
+  assert.equal(partial.confidence, 'partial')
+  assert.deepEqual(partial.missingData, ['humidity', 'dew', 'wind'])
   assert.equal(partial.humidScore, null)
+
+  const full = scoreHour({ cloud: 0, ...NO_MOON, ...IDEAL })
+  assert.equal(full.confidence, 'full')
+  assert.deepEqual(full.missingData, [])
 })

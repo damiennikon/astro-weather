@@ -9,7 +9,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { buildForecast } from '../src/forecast.js'
-import { zonedParts, zonedToUtc } from '../src/timezone.js'
+import { formatCivilDate, formatTimeInZone, zonedParts, zonedToUtc } from '../src/timezone.js'
 import { buildFixture, okResponse } from './helpers/openMeteoFixture.mjs'
 
 const PERTH = { lat: -31.95, lng: 115.86, tz: 'Australia/Perth' }
@@ -19,6 +19,13 @@ function perthFetch() {
   const body = buildFixture({ timeZone: PERTH.tz, startYmd: START, format: 'unixtime' })
   return async () => okResponse(body)
 }
+
+test('display helpers format absolute times and civil dates at the site timezone', () => {
+  const instant = new Date('2026-08-18T12:00:00Z')
+  assert.equal(formatTimeInZone(instant, 'Australia/Perth'), '20:00')
+  assert.equal(formatTimeInZone(instant, 'Australia/Brisbane'), '22:00')
+  assert.equal(formatCivilDate('2026-08-18', 'Australia/Perth'), 'Tue, 18 Aug')
+})
 
 test('hours are indexed by the site timezone, not the browser timezone', async () => {
   assert.equal(process.env.TZ, 'Australia/Brisbane', 'run with TZ=Australia/Brisbane')

@@ -83,6 +83,29 @@ export function formatYmd({ year, month, day }) {
   return `${year}-${pad(month)}-${pad(day)}`
 }
 
+// Formats an absolute instant as the local wall-clock time at the observing site.
+export function formatTimeInZone(date, timeZone) {
+  if (!date) return '—'
+  const p = zonedParts(date instanceof Date ? date : new Date(date), safeTimeZone(timeZone))
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${pad(p.hour)}:${pad(p.minute)}`
+}
+
+// `dateStr` is already a civil date in the observing site's timezone. Resolve a
+// safe midday instant there so formatting cannot roll the label into an adjacent
+// date because of the viewer's timezone.
+export function formatCivilDate(dateStr, timeZone) {
+  const [year, month, day] = String(dateStr).split('-').map(Number)
+  const zone = safeTimeZone(timeZone)
+  const instant = zonedToUtc(year, month, day, 12, 0, zone)
+  return new Intl.DateTimeFormat('en-AU', {
+    timeZone: zone,
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(instant)
+}
+
 // Civil-date arithmetic that normalises month/year rollover.
 export function addDays({ year, month, day }, days) {
   const d = new Date(Date.UTC(year, month - 1, day + days))

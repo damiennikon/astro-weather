@@ -1,4 +1,5 @@
 import { requestAndSubscribe, unsubscribe, getSubscriptionStatus } from './notifications.js'
+import { formatTimeInZone, formatCivilDate } from './timezone.js'
 
 const STORAGE_KEY = 'astro-location'
 const RED_MODE_KEY = 'astro-red-mode'
@@ -11,6 +12,12 @@ const VERDICT_LABEL = {
   poor: 'Poor',
   verypoor: 'Very Poor',
   unavailable: 'No Data',
+}
+
+const CONFIDENCE_LABEL = {
+  full: 'Full data',
+  partial: 'Partial data',
+  unavailable: 'No data',
 }
 
 const MODEL_LABEL = { ecmwf: 'ECMWF', ukmo: 'UKMO', icon: 'ICON' }
@@ -595,6 +602,7 @@ export class App {
 
   renderTonight(night) {
     this.root.querySelector('#tonight-panel').removeAttribute('hidden')
+    const timeZone = this.state.location?.timezone
 
     const avgScore = night.nightAvg.score
     const heroVerdict = scoreToVerdict(avgScore)
@@ -603,20 +611,20 @@ export class App {
         <span class="score-ring-value">${avgScore !== null ? Math.round(avgScore) : '—'}</span>
         <span class="score-ring-verdict verdict-text-${heroVerdict}">${VERDICT_LABEL[heroVerdict] ?? ''}</span>
       </div>
-      <p class="score-ring-caption">Tonight&#39;s dark-hours average</p>`
+      <p class="score-ring-caption">Tonight&#39;s dark-hours average · ${CONFIDENCE_LABEL[night.confidence] ?? 'Unknown confidence'}</p>`
 
     this.root.querySelector('#astro-dark-range').textContent =
       night.astroStart && night.astroEnd
-        ? `Astro Dark: ${formatTime(night.astroStart)} – ${formatTime(night.astroEnd)}`
+        ? `Astro Dark: ${formatTime(night.astroStart, timeZone)} – ${formatTime(night.astroEnd, timeZone)}`
         : 'Astro Dark: unavailable'
 
-    this.root.querySelector('#moon-range').textContent = formatMoonRange(night)
-    this.root.querySelector('#mw-range').textContent = formatMilkyWayRange(night)
+    this.root.querySelector('#moon-range').textContent = formatMoonRange(night, timeZone)
+    this.root.querySelector('#mw-range').textContent = formatMilkyWayRange(night, timeZone)
 
     this.root.querySelector('#summary-metrics').innerHTML = renderNightSummary(night)
-    this.root.querySelector('#optimal-window-callout').textContent = formatOptimalWindow(night.optimalWindow)
+    this.root.querySelector('#optimal-window-callout').textContent = formatOptimalWindow(night.optimalWindow, timeZone)
 
-    this.root.querySelector('#tonight-hourly').innerHTML = renderHourlyScroll(night, 0)
+    this.root.querySelector('#tonight-hourly').innerHTML = renderHourlyScroll(night, 0, timeZone)
   }
 
   // ---------------------------------------------------------------------
@@ -627,6 +635,7 @@ export class App {
     const panel = this.root.querySelector('#outlook-panel')
     panel.removeAttribute('hidden')
     const list = this.root.querySelector('#outlook-list')
+    const timeZone = this.state.location?.timezone
 
     list.innerHTML = nights
       .slice(1)
@@ -638,7 +647,7 @@ export class App {
         return `
         <div class="outlook-card outlook-verdict-${verdict}" data-night-index="${nightIndex}">
           <button class="outlook-summary" data-action="toggle" data-night-index="${nightIndex}">
-            <span class="outlook-date">${formatNightDate(night.date)}</span>
+            <span class="outlook-date">${formatNightDate(night.date, timeZone)}</span>
             <span class="outlook-score-badge verdict-${verdict}">${avgScore !== null ? Math.round(avgScore) : '—'}</span>
             <span class="outlook-stats">
               <span class="outlook-stat">☁ ${formatPercent(night.nightAvg.cloud)}</span>
@@ -647,7 +656,7 @@ export class App {
             </span>
           </button>
           <div class="outlook-expanded" ${expanded ? '' : 'hidden'}>
-            ${expanded ? `<div class="hourly-scroll">${renderHourlyScroll(night, nightIndex)}</div>` : ''}
+            ${expanded ? `<div class="hourly-scroll">${renderHourlyScroll(night, nightIndex, timeZone)}</div>` : ''}
           </div>
         </div>`
       })
@@ -680,7 +689,7 @@ export class App {
   }
 
   openConfidenceModal(night, hour) {
-    this.root.querySelector('#confidence-modal-time').textContent = formatTime(hour.time)
+    this.root.querySelector('#confidence-modal-time').textContent = formatTime(hour.time, this.state.location?.timezone)
     this.root.querySelector('#confidence-modal-body').innerHTML = renderConfidenceModalBody(hour)
     this.root.querySelector('#confidence-modal').removeAttribute('hidden')
   }
@@ -804,47 +813,43 @@ function formatCoords(lat, lng) {
 // Formatting helpers
 // ---------------------------------------------------------------------
 
-function formatTime(date) {
-  if (!date) return '—'
-  const d = date instanceof Date ? date : new Date(date)
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+function formatTime(date, timeZone) {
+  return formatTimeInZone(date, timeZone)
 }
 
 function formatPercent(value) {
   return value === null || value === undefined ? '—' : `${Math.round(value)}%`
 }
 
-function formatNightDate(dateStr) {
-  const d = new Date(`${dateStr}T00:00:00`)
-  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })
+function formatNightDate(dateStr, timeZone) {
+  return formatCivilDate(dateStr, timeZone)
 }
 
-function formatMoonRange(night) {
+function formatMoonRange(night, timeZone) {
   const upAtStart = night.hours[0]?.moonAlt > 0
   if (!night.moonrise && !night.moonset) {
     return upAtStart ? 'Moon: Up all night' : 'Moon: Below horizon all night'
   }
   const parts = []
-  if (night.moonrise) parts.push(`rises ${formatTime(night.moonrise)}`)
-  if (night.moonset) parts.push(`sets ${formatTime(night.moonset)}`)
+  if (night.moonrise) parts.push(`rises ${formatTime(night.moonrise, timeZone)}`)
+  if (night.moonset) parts.push(`sets ${formatTime(night.moonset, timeZone)}`)
   return `Moon: ${parts.join(' / ')}`
 }
 
-function formatMilkyWayRange(night) {
+function formatMilkyWayRange(night, timeZone) {
   const visibleAtStart = night.hours[0]?.mwVisible
   if (!night.mwRise && !night.mwSet) {
     return visibleAtStart ? 'Milky Way: Visible all night' : 'Milky Way: Not visible tonight'
   }
   const parts = []
-  if (night.mwRise) parts.push(`rises ${formatTime(night.mwRise)}`)
-  if (night.mwSet) parts.push(`sets ${formatTime(night.mwSet)}`)
+  if (night.mwRise) parts.push(`rises ${formatTime(night.mwRise, timeZone)}`)
+  if (night.mwSet) parts.push(`sets ${formatTime(night.mwSet, timeZone)}`)
   return `Milky Way: ${parts.join(' / ')}`
 }
 
-function formatOptimalWindow(window) {
+function formatOptimalWindow(window, timeZone) {
   if (!window) return 'No clear darkness window tonight'
-  return `Best window: ${formatTime(window.startHour)} – ${formatTime(window.endHour)} (${window.blockSize} hr${window.blockSize > 1 ? 's' : ''}, avg score: ${Math.round(window.avg)})`
+  return `Best window: ${formatTime(window.startHour, timeZone)} – ${formatTime(window.endHour, timeZone)} (${window.blockSize} hr${window.blockSize > 1 ? 's' : ''}, avg score: ${Math.round(window.avg)})`
 }
 
 function scoreToVerdict(score) {
@@ -937,7 +942,7 @@ function escapeHtml(str) {
 // Hourly scroll rendering (shared by Tonight panel + Outlook expansion)
 // ---------------------------------------------------------------------
 
-function renderHourlyScroll(night, nightIndex) {
+function renderHourlyScroll(night, nightIndex, timeZone) {
   let html = ''
   let lastIsDark = null
   night.hours.forEach((hour, hourIndex) => {
@@ -945,13 +950,13 @@ function renderHourlyScroll(night, nightIndex) {
       html += `<div class="hour-divider">${hour.isDark ? 'Astro Dark Begins' : 'Astro Dark Ends'}</div>`
     }
     lastIsDark = hour.isDark
-    html += renderHourCard(hour, nightIndex, hourIndex)
+    html += renderHourCard(hour, nightIndex, hourIndex, timeZone)
   })
   return html
 }
 
-function renderHourCard(hour, nightIndex, hourIndex) {
-  const timeLabel = formatTime(hour.time)
+function renderHourCard(hour, nightIndex, hourIndex, timeZone) {
+  const timeLabel = formatTime(hour.time, timeZone)
   if (hour.isDark) {
     const verdict = hour.verdict ?? 'unavailable'
     return `
@@ -1014,6 +1019,11 @@ function renderConfidenceModalBody(hour) {
       }.</p>`
     : ''
 
+  const confidenceNote =
+    hour.confidence === 'partial'
+      ? `<p class="score-veto-note">Partial data — missing ${escapeHtml((hour.missingData ?? []).join(', '))}. The numeric score is shown, but confidence is reduced.</p>`
+      : ''
+
   const scoreBars = hour.isDark
     ? hour.components
       ? `
@@ -1030,6 +1040,7 @@ function renderConfidenceModalBody(hour) {
   return `
     ${table}
     <div class="agreement-row">${agreementBadge ?? ''}</div>
+    ${confidenceNote}
     ${scoreBars}
   `
 }

@@ -109,7 +109,9 @@ export function scoreHour({ cloud, moonIllum, moonAlt, humidity, temp, dewpoint,
   // A null score, not 0. Scoring missing data as zero turns "we don't know" into a
   // confident "very poor", and averaging those zeros into a night drags the whole
   // night down. Callers must exclude null scores rather than treat them as bad.
-  if (cloud === null || cloud === undefined) return { score: null, verdict: 'unavailable' }
+  if (cloud === null || cloud === undefined) {
+    return { score: null, verdict: 'unavailable', confidence: 'unavailable', missingData: ['cloud'] }
+  }
 
   // Cloud (35%)
   const cloudScore = interpolate(CLOUD_SCORE, cloud)
@@ -135,6 +137,14 @@ export function scoreHour({ cloud, moonIllum, moonAlt, humidity, temp, dewpoint,
 
   // Wind (10%)
   const windScore = windspeed !== null && windspeed !== undefined ? interpolate(WIND_SCORE, windspeed) : null
+
+  const missingData = []
+  if (humidScore === null) missingData.push('humidity')
+  if (dewScore === null) missingData.push('dew')
+  if (windScore === null) missingData.push('wind')
+  if (moonIllum === null || moonIllum === undefined || moonAlt === null || moonAlt === undefined) {
+    missingData.push('moon')
+  }
 
   // Integer weight units so the all-present case divides by exactly 100.
   const parts = [
@@ -171,6 +181,8 @@ export function scoreHour({ cloud, moonIllum, moonAlt, humidity, temp, dewpoint,
   return {
     score,
     verdict,
+    confidence: missingData.length === 0 ? 'full' : 'partial',
+    missingData,
     cloudScore,
     moonScore,
     humidScore,
