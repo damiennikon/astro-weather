@@ -5,9 +5,18 @@ import * as Astronomy from 'astronomy-engine'
 import { scoreHour, findOptimalWindow } from './scoring.js'
 import { safeTimeZone, zonedParts, zonedToUtc, addDays, formatYmd } from './timezone.js'
 
-const SURFACE_VARS =
-  'cloudcover_low,cloudcover_mid,cloudcover_high,temperature_2m,relativehumidity_2m,dewpoint_2m,windspeed_10m'
-const UPPER_VARS = 'windspeed_250hPa'
+const SURFACE_FIELDS = [
+  'cloud_cover_low',
+  'cloud_cover_mid',
+  'cloud_cover_high',
+  'temperature_2m',
+  'relative_humidity_2m',
+  'dew_point_2m',
+  'wind_speed_10m',
+]
+const UPPER_FIELDS = ['wind_speed_250hPa']
+const SURFACE_VARS = SURFACE_FIELDS.join(',')
+const UPPER_VARS = UPPER_FIELDS.join(',')
 // NOTE: plan specifies 'ecmwf_ifs04', but Open-Meteo has deprecated that id —
 // it now silently returns all-null values. 'ecmwf_ifs025' is the current equivalent.
 export const MODELS = { ecmwf: 'ecmwf_ifs025', ukmo: 'ukmo_seamless', icon: 'icon_global' }
@@ -61,7 +70,7 @@ export function buildUrl(lat, lng, timezone, modelId, includeUpper) {
 // than a transport error, so a bare `await res.json()` yields an object that looks
 // like a response but has no `hourly` — which downstream reads as "every value is
 // null" and scores out as a confident 0/100. Reject those here instead.
-export async function fetchModel(url, fetchImpl = fetch) {
+export async function fetchModel(url, fetchImpl = fetch, requiredFields = SURFACE_FIELDS) {
   const res = await fetchImpl(url)
 
   // Open-Meteo puts the useful diagnosis in the body ({error, reason}) even on a
@@ -77,8 +86,26 @@ export async function fetchModel(url, fetchImpl = fetch) {
   if (!res.ok || json?.error) {
     throw new Error(String(json?.reason ?? `HTTP ${res.status}`))
   }
-  if (!Array.isArray(json?.hourly?.time) || json.hourly.time.length === 0) {
+  const times = json?.hourly?.time
+  if (!Array.isArray(times) || times.length === 0) {
     throw new Error('response contained no hourly data')
+  }
+
+  if (times.some((value) => !Number.isFinite(value))) {
+    throw new Error('response contained invalid hourly timestamps')
+  }
+
+  for (const field of requiredFields) {
+    const values = json.hourly[field]
+    if (!Array.isArray(values)) {
+      throw new Error(`response missing hourly array: ${field}`)
+    }
+    if (values.length !== times.length) {
+      throw new Error(`hourly array length mismatch: ${field}`)
+    }
+    if (values.some((value) => value !== null && !Number.isFinite(value))) {
+      throw new Error(`response contained invalid values: ${field}`)
+    }
   }
   return json
 }
@@ -90,7 +117,10 @@ export async function fetchModels(lat, lng, timezone, { fetchImpl = fetch, onPro
   onProgress?.('Fetching ECMWF, UKMO & ICON models...')
 
   const settled = await Promise.allSettled(
-    ids.map((id) => fetchModel(buildUrl(lat, lng, timezone, MODELS[id], UPPER_AIR_MODELS.has(id)), fetchImpl))
+    ids.map((id) => {
+      const requiredFields = UPPER_AIR_MODELS.has(id) ? [...SURFACE_FIELDS, ...UPPER_FIELDS] : SURFACE_FIELDS
+      return fetchModel(buildUrl(lat, lng, timezone, MODELS[id], UPPER_AIR_MODELS.has(id)), fetchImpl, requiredFields)
+    })
   )
 
   const responses = {}
@@ -172,9 +202,9 @@ export async function buildForecast(lat, lng, timezone, options = {}) {
 // once a model's real forecast horizon is exceeded, regardless of forecast_days requested.
 export function findCoverageEnd(response) {
   const times = response?.hourly?.time ?? []
-  const low = response?.hourly?.cloudcover_low ?? []
-  const mid = response?.hourly?.cloudcover_mid ?? []
-  const high = response?.hourly?.cloudcover_high ?? []
+  const low = response?.hourly?.cloud_cover_low ?? []
+  const mid = response?.hourly?.cloud_cover_mid ?? []
+  const high = response?.hourly?.cloud_cover_high ?? []
   let lastValidIdx = -1
   for (let i = 0; i < times.length; i++) {
     if (low[i] != null && mid[i] != null && high[i] != null) {
@@ -214,9 +244,6 @@ function readHourly(model, key, field) {
 }
 
 export function blendCloud(ecmwf, ukmo, icon) {
-  const values = [ecmwf, ukmo, icon].filter((v) => v !== null && v !== undefined)
-  if (values.length === 0) return null
-
   let weighted = 0
   let totalWeight = 0
   if (ecmwf != null) {
@@ -231,13 +258,7 @@ export function blendCloud(ecmwf, ukmo, icon) {
     weighted += icon * MODEL_WEIGHTS.icon
     totalWeight += MODEL_WEIGHTS.icon
   }
-  const avg = weighted / totalWeight
-
-  const spread = Math.max(...values) - Math.min(...values)
-  if (spread > 30) {
-    return Math.min(...values) + 0.7 * spread // Skew pessimistic
-  }
-  return avg
+  return totalWeight === 0 ? null : weighted / totalWeight
 }
 
 // Cloud layers are treated as independent overlapping planes: combined coverage is
@@ -245,8 +266,8 @@ export function blendCloud(ecmwf, ukmo, icon) {
 // additive sum double-counts the sky area where layers overlap (e.g. low=60% +
 // mid=50% would wrongly claim 100%+ cover when the true combined obscuration is 80%).
 export function combineCloudLayers(low, mid, high) {
-  if (low === null && mid === null && high === null) return null
-  const clearSky = (1 - (low ?? 0) / 100) * (1 - (mid ?? 0) / 100) * (1 - (high ?? 0) / 100)
+  if ([low, mid, high].some((value) => value === null || value === undefined)) return null
+  const clearSky = (1 - low / 100) * (1 - mid / 100) * (1 - high / 100)
   return 100 * (1 - clearSky)
 }
 
@@ -324,14 +345,26 @@ function buildHour(time, isDark, astroEnd, observer, models) {
   const key = hourKey(time)
   const layer = (id, field) => readHourly(models[id], key, field)
 
-  const cloudLow = blendCloud(layer('ecmwf', 'cloudcover_low'), layer('ukmo', 'cloudcover_low'), layer('icon', 'cloudcover_low'))
-  const cloudMid = blendCloud(layer('ecmwf', 'cloudcover_mid'), layer('ukmo', 'cloudcover_mid'), layer('icon', 'cloudcover_mid'))
-  const cloudHigh = blendCloud(layer('ecmwf', 'cloudcover_high'), layer('ukmo', 'cloudcover_high'), layer('icon', 'cloudcover_high'))
-  const cloud = combineCloudLayers(cloudLow, cloudMid, cloudHigh)
+  const cloudLow = blendCloud(layer('ecmwf', 'cloud_cover_low'), layer('ukmo', 'cloud_cover_low'), layer('icon', 'cloud_cover_low'))
+  const cloudMid = blendCloud(layer('ecmwf', 'cloud_cover_mid'), layer('ukmo', 'cloud_cover_mid'), layer('icon', 'cloud_cover_mid'))
+  const cloudHigh = blendCloud(layer('ecmwf', 'cloud_cover_high'), layer('ukmo', 'cloud_cover_high'), layer('icon', 'cloud_cover_high'))
 
-  const cloudEcmwf = combineCloudLayers(layer('ecmwf', 'cloudcover_low'), layer('ecmwf', 'cloudcover_mid'), layer('ecmwf', 'cloudcover_high'))
-  const cloudUkmo = combineCloudLayers(layer('ukmo', 'cloudcover_low'), layer('ukmo', 'cloudcover_mid'), layer('ukmo', 'cloudcover_high'))
-  const cloudIcon = combineCloudLayers(layer('icon', 'cloudcover_low'), layer('icon', 'cloudcover_mid'), layer('icon', 'cloudcover_high'))
+  const cloudEcmwf = combineCloudLayers(
+    layer('ecmwf', 'cloud_cover_low'),
+    layer('ecmwf', 'cloud_cover_mid'),
+    layer('ecmwf', 'cloud_cover_high')
+  )
+  const cloudUkmo = combineCloudLayers(
+    layer('ukmo', 'cloud_cover_low'),
+    layer('ukmo', 'cloud_cover_mid'),
+    layer('ukmo', 'cloud_cover_high')
+  )
+  const cloudIcon = combineCloudLayers(
+    layer('icon', 'cloud_cover_low'),
+    layer('icon', 'cloud_cover_mid'),
+    layer('icon', 'cloud_cover_high')
+  )
+  const cloud = blendCloud(cloudEcmwf, cloudUkmo, cloudIcon)
 
   // Agreement needs at least two opinions to mean anything. With one model left the
   // honest answer is "unknown", not "agree".
@@ -346,12 +379,12 @@ function buildHour(time, isDark, astroEnd, observer, models) {
 
   const surface = (field) => average([layer('ecmwf', field), layer('ukmo', field), layer('icon', field)])
   const temp = surface('temperature_2m')
-  const humidity = surface('relativehumidity_2m')
-  const dewpoint = surface('dewpoint_2m')
-  const windspeed = surface('windspeed_10m')
+  const humidity = surface('relative_humidity_2m')
+  const dewpoint = surface('dew_point_2m')
+  const windspeed = surface('wind_speed_10m')
 
   // Jet stream — informational display only, not part of scoring (UKMO doesn't provide it)
-  const jetstream = average([layer('ecmwf', 'windspeed_250hPa'), layer('icon', 'windspeed_250hPa')])
+  const jetstream = average([layer('ecmwf', 'wind_speed_250hPa'), layer('icon', 'wind_speed_250hPa')])
 
   const moonEq = Astronomy.Equator(Astronomy.Body.Moon, time, observer, true, true)
   const moonAlt = Astronomy.Horizon(time, observer, moonEq.ra, moonEq.dec, 'normal').altitude

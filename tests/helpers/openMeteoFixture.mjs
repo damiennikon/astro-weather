@@ -10,28 +10,28 @@ import { zonedParts, zonedToUtc } from '../../src/timezone.js'
 export function buildFixture({ timeZone, startYmd, days = 8, format = 'unixtime' }) {
   const start = zonedToUtc(startYmd.year, startYmd.month, startYmd.day, 0, 0, timeZone)
   const time = []
-  const cloudcover_low = []
+  const cloud_cover_low = []
   const zeros = []
 
   for (let i = 0; i < days * 24; i++) {
     const instant = new Date(start.getTime() + i * 3600 * 1000)
     const localHour = zonedParts(instant, timeZone).hour
     time.push(format === 'unixtime' ? Math.floor(instant.getTime() / 1000) : localNaive(instant, timeZone))
-    cloudcover_low.push(localHour)
+    cloud_cover_low.push(localHour)
     zeros.push(0)
   }
 
   return {
     hourly: {
       time,
-      cloudcover_low,
-      cloudcover_mid: [...zeros],
-      cloudcover_high: [...zeros],
+      cloud_cover_low,
+      cloud_cover_mid: [...zeros],
+      cloud_cover_high: [...zeros],
       temperature_2m: zeros.map(() => 15),
-      relativehumidity_2m: zeros.map(() => 40),
-      dewpoint_2m: zeros.map(() => 2),
-      windspeed_10m: zeros.map(() => 5),
-      windspeed_250hPa: zeros.map(() => 60),
+      relative_humidity_2m: zeros.map(() => 40),
+      dew_point_2m: zeros.map(() => 2),
+      wind_speed_10m: zeros.map(() => 5),
+      wind_speed_250hPa: zeros.map(() => 60),
     },
   }
 }

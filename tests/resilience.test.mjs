@@ -14,7 +14,7 @@ const NOW = zonedToUtc(START.year, START.month, START.day, 12, 0, SITE.tz)
 // Clear skies for everyone, so any score movement comes from availability alone.
 function clearFixture() {
   const body = buildFixture({ timeZone: SITE.tz, startYmd: START })
-  body.hourly.cloudcover_low = body.hourly.cloudcover_low.map(() => 0)
+  body.hourly.cloud_cover_low = body.hourly.cloud_cover_low.map(() => 0)
   return body
 }
 
