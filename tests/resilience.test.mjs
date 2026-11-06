@@ -39,6 +39,22 @@ test('all three models present: full confidence', async () => {
   assert.equal(meta.weightCoverage, 1)
   assert.ok(nights[0].nightAvg.score > 0)
   assert.equal(nights[0].dataStatus, 'ok')
+  assert.equal(nights[0].confidence, 'full')
+})
+
+test('missing meteorological inputs preserve the score but mark confidence partial', async () => {
+  const body = clearFixture()
+  body.hourly.relative_humidity_2m = body.hourly.relative_humidity_2m.map(() => null)
+
+  const { nights } = await run(routeByModel({ ecmwf: body, ukmo: body, icon: body }))
+  const night = nights[0]
+  const darkHour = night.hours.find((h) => h.isDark)
+
+  assert.equal(night.dataStatus, 'ok', 'cloud data still makes every dark hour scoreable')
+  assert.equal(night.confidence, 'partial')
+  assert.equal(darkHour.confidence, 'partial')
+  assert.deepEqual(darkHour.missingData, ['humidity'])
+  assert.ok(darkHour.score > 0)
 })
 
 test('ICON fails: forecast still renders on the remaining two, flagged degraded', async () => {
