@@ -1,4 +1,9 @@
-import { requestAndSubscribe, unsubscribe, getSubscriptionStatus } from './notifications.js'
+import {
+  requestAndSubscribe,
+  syncSubscriptionLocation,
+  unsubscribe,
+  getSubscriptionStatus,
+} from './notifications.js'
 import { formatTimeInZone, formatCivilDate } from './timezone.js'
 
 const STORAGE_KEY = 'astro-location'
@@ -499,6 +504,11 @@ export class App {
     this.state.location = location
     this.setLocationLabel(location.name)
     this.closeLocationPrompt()
+    syncSubscriptionLocation(location).then((result) => {
+      if (!result.ok && result.reason !== 'unsubscribed' && result.reason !== 'unsupported') {
+        console.warn('[notifications] could not update subscription location', result.reason)
+      }
+    })
     this.fetchForecast(location)
   }
 

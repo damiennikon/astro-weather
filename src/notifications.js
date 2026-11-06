@@ -7,7 +7,45 @@ export function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)))
 }
 
-export async function requestAndSubscribe() {
+function currentLocation(location) {
+  if (location) return location
+  try {
+    return JSON.parse(localStorage.getItem('astro-location') ?? '{}')
+  } catch {
+    return {}
+  }
+}
+
+function locationPayload(location) {
+  const value = currentLocation(location)
+  if (!Number.isFinite(value.lat) || !Number.isFinite(value.lng)) return null
+
+  return {
+    lat: value.lat,
+    lng: value.lng,
+    locationName: value.name,
+    timezone: value.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+  }
+}
+
+async function registerSubscription(subscription, location) {
+  const forecastLocation = locationPayload(location)
+  if (!forecastLocation) return { ok: false, reason: 'location-missing' }
+
+  try {
+    const res = await fetch(`${SUBSCRIBE_WORKER_URL}/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription, ...forecastLocation }),
+    })
+
+    return res.ok ? { ok: true } : { ok: false, reason: 'server-error' }
+  } catch {
+    return { ok: false, reason: 'server-error' }
+  }
+}
+
+export async function requestAndSubscribe(location) {
   if (!('Notification' in window) || !('PushManager' in window)) {
     return { ok: false, reason: 'unsupported' }
   }
@@ -25,7 +63,10 @@ export async function requestAndSubscribe() {
 
   const reg = await navigator.serviceWorker.ready
   const existing = await reg.pushManager.getSubscription()
-  if (existing) return { ok: true, reason: 'already-subscribed' }
+  if (existing) {
+    const result = await registerSubscription(existing, location)
+    return result.ok ? { ok: true, reason: 'already-subscribed' } : result
+  }
 
   const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
   const subscription = await reg.pushManager.subscribe({
@@ -33,23 +74,20 @@ export async function requestAndSubscribe() {
     applicationServerKey: urlBase64ToUint8Array(vapidKey)
   })
 
-  const location = JSON.parse(localStorage.getItem('astro-location') ?? '{}')
+  return registerSubscription(subscription, location)
+}
 
-  const res = await fetch(`${SUBSCRIBE_WORKER_URL}/subscribe`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      subscription,
-      lat:          location.lat,
-      lng:          location.lng,
-      locationName: location.name,
-      // Without this the scheduler cannot tell which calendar day a night belongs
-      // to at the site, and falls back to a hardcoded east-coast zone.
-      timezone:     location.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
-    })
-  })
+export async function syncSubscriptionLocation(location) {
+  if (!('PushManager' in window)) return { ok: false, reason: 'unsupported' }
 
-  return res.ok ? { ok: true } : { ok: false, reason: 'server-error' }
+  try {
+    const reg = await navigator.serviceWorker.ready
+    const existing = await reg.pushManager.getSubscription()
+    if (!existing) return { ok: false, reason: 'unsubscribed' }
+    return registerSubscription(existing, location)
+  } catch {
+    return { ok: false, reason: 'server-error' }
+  }
 }
 
 export async function unsubscribe() {
