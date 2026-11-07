@@ -46,6 +46,17 @@ test('fetchModel rejects missing and mismatched required arrays', async () => {
   )
 })
 
+test('fetchModel converts an aborted upstream request into a bounded timeout error', async () => {
+  const fetchImpl = async (_url, { signal }) => new Promise((resolve, reject) => {
+    signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+  })
+
+  await assert.rejects(
+    () => fetchModel('https://example.test', fetchImpl, [], 1),
+    /Forecast request timed out after 0\.001s/,
+  )
+})
+
 test('missing cloud layers remain unavailable instead of becoming clear sky', () => {
   assert.equal(combineCloudLayers(20, null, 10), null)
   assert.equal(combineCloudLayers(null, null, 10), null)

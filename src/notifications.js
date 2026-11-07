@@ -1,4 +1,15 @@
 const SUBSCRIBE_WORKER_URL = import.meta.env.VITE_SUBSCRIBE_WORKER_URL
+const NOTIFICATION_REQUEST_TIMEOUT_MS = 10_000
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = NOTIFICATION_REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 export function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4)
@@ -33,7 +44,7 @@ async function registerSubscription(subscription, location) {
   if (!forecastLocation) return { ok: false, reason: 'location-missing' }
 
   try {
-    const res = await fetch(`${SUBSCRIBE_WORKER_URL}/subscribe`, {
+    const res = await fetchWithTimeout(`${SUBSCRIBE_WORKER_URL}/subscribe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subscription, ...forecastLocation }),
@@ -95,7 +106,7 @@ export async function unsubscribe() {
   const sub = await reg.pushManager.getSubscription()
   if (!sub) return
 
-  await fetch(`${SUBSCRIBE_WORKER_URL}/unsubscribe`, {
+  await fetchWithTimeout(`${SUBSCRIBE_WORKER_URL}/unsubscribe`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ endpoint: sub.endpoint })

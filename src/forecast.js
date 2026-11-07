@@ -17,6 +17,7 @@ const SURFACE_FIELDS = [
 const UPPER_FIELDS = ['wind_speed_250hPa']
 const SURFACE_VARS = SURFACE_FIELDS.join(',')
 const UPPER_VARS = UPPER_FIELDS.join(',')
+export const FORECAST_TIMEOUT_MS = 15_000
 // NOTE: plan specifies 'ecmwf_ifs04', but Open-Meteo has deprecated that id —
 // it now silently returns all-null values. 'ecmwf_ifs025' is the current equivalent.
 export const MODELS = { ecmwf: 'ecmwf_ifs025', ukmo: 'ukmo_seamless', icon: 'icon_global' }
@@ -70,8 +71,25 @@ export function buildUrl(lat, lng, timezone, modelId, includeUpper) {
 // than a transport error, so a bare `await res.json()` yields an object that looks
 // like a response but has no `hourly` — which downstream reads as "every value is
 // null" and scores out as a confident 0/100. Reject those here instead.
-export async function fetchModel(url, fetchImpl = fetch, requiredFields = SURFACE_FIELDS) {
-  const res = await fetchImpl(url)
+export async function fetchModel(
+  url,
+  fetchImpl = fetch,
+  requiredFields = SURFACE_FIELDS,
+  timeoutMs = FORECAST_TIMEOUT_MS,
+) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  let res
+  try {
+    res = await fetchImpl(url, { signal: controller.signal })
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`Forecast request timed out after ${timeoutMs / 1000}s`)
+    }
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
 
   // Open-Meteo puts the useful diagnosis in the body ({error, reason}) even on a
   // 4xx, so parse before deciding what to report. A body that will not parse at
@@ -112,14 +130,23 @@ export async function fetchModel(url, fetchImpl = fetch, requiredFields = SURFAC
 
 // Fetches all three models independently. One model failing costs the blend that
 // model's weight and nothing more; only losing all three is fatal.
-export async function fetchModels(lat, lng, timezone, { fetchImpl = fetch, onProgress } = {}) {
+export async function fetchModels(lat, lng, timezone, {
+  fetchImpl = fetch,
+  onProgress,
+  timeoutMs = FORECAST_TIMEOUT_MS,
+} = {}) {
   const ids = Object.keys(MODELS)
   onProgress?.('Fetching ECMWF, UKMO & ICON models...')
 
   const settled = await Promise.allSettled(
     ids.map((id) => {
       const requiredFields = UPPER_AIR_MODELS.has(id) ? [...SURFACE_FIELDS, ...UPPER_FIELDS] : SURFACE_FIELDS
-      return fetchModel(buildUrl(lat, lng, timezone, MODELS[id], UPPER_AIR_MODELS.has(id)), fetchImpl, requiredFields)
+      return fetchModel(
+        buildUrl(lat, lng, timezone, MODELS[id], UPPER_AIR_MODELS.has(id)),
+        fetchImpl,
+        requiredFields,
+        timeoutMs,
+      )
     })
   )
 
