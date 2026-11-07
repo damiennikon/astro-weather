@@ -1,7 +1,8 @@
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
 import { registerRoute } from 'workbox-routing'
-import { StaleWhileRevalidate } from 'workbox-strategies'
+import { NetworkFirst } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
+import { markCachedForecast } from './forecastCache.js'
 
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
@@ -14,10 +15,14 @@ self.addEventListener('activate', (event) => {
 })
 
 registerRoute(
-  ({ url }) => url.origin === 'https://api.open-meteo.com',
-  new StaleWhileRevalidate({
+  ({ url }) => url.origin === 'https://api.open-meteo.com' && url.pathname === '/v1/forecast',
+  new NetworkFirst({
     cacheName: 'open-meteo-cache',
-    plugins: [new ExpirationPlugin({ maxAgeSeconds: 3600 })],
+    fetchOptions: { cache: 'no-store' },
+    plugins: [
+      new ExpirationPlugin({ maxAgeSeconds: 3600 }),
+      { cachedResponseWillBeUsed: markCachedForecast },
+    ],
   })
 )
 

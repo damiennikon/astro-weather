@@ -4,7 +4,7 @@ import {
   unsubscribe,
   getSubscriptionStatus,
 } from './notifications.js'
-import { formatTimeInZone, formatCivilDate } from './timezone.js'
+import { formatTimeInZone, formatCivilDate, zonedDateString, safeTimeZone } from './timezone.js'
 
 const STORAGE_KEY = 'astro-location'
 const RED_MODE_KEY = 'astro-red-mode'
@@ -40,6 +40,10 @@ export class App {
     this.state = {
       location: null,
       nights: null,
+      meta: null,
+      forecastLocation: null,
+      forecastFetchedAt: null,
+      refreshFailed: false,
       expandedOutlookIndex: null,
       modalContext: null,
       satelliteVisible: false,
@@ -85,6 +89,11 @@ export class App {
       </header>
 
       <main id="main-content">
+        <div id="forecast-status" class="forecast-status" hidden>
+          <p id="forecast-freshness" role="status"></p>
+          <button id="forecast-refresh-btn" class="link-btn">Refresh forecast</button>
+        </div>
+        <p id="forecast-refresh-warning" class="data-notice" role="status" hidden></p>
         <div id="data-notice" class="data-notice" hidden></div>
 
         <section id="forecast-error" class="panel forecast-error" hidden>
@@ -184,9 +193,11 @@ export class App {
     this.root.querySelector('#use-my-location-btn').addEventListener('click', () => this.handleUseMyLocation())
     this.root.querySelector('#confidence-modal-close').addEventListener('click', () => this.closeConfidenceModal())
     this.root.querySelector('#satellite-toggle').addEventListener('click', () => this.toggleSatellite())
-    this.root.querySelector('#forecast-retry-btn').addEventListener('click', () => {
+    const refreshForecast = () => {
       if (this.state.location) this.fetchForecast(this.state.location)
-    })
+    }
+    this.root.querySelector('#forecast-retry-btn').addEventListener('click', refreshForecast)
+    this.root.querySelector('#forecast-refresh-btn').addEventListener('click', refreshForecast)
 
     const searchInput = this.root.querySelector('#location-search')
     let debounceTimer = null
@@ -521,64 +532,128 @@ export class App {
   // ---------------------------------------------------------------------
 
   fetchForecast(location) {
-    this.showLoading(true, 'Starting forecast…')
-    if (this.worker) this.worker.terminate()
-    this.worker = new Worker(new URL('./weatherWorker.js', import.meta.url), { type: 'module' })
-    this.worker.onmessage = (event) => this.handleWorkerMessage(event)
-    this.worker.onerror = () => {
-      this.showLoading(false)
-      this.showLocationError('Something went wrong fetching the forecast.')
+    const previous = this.state.forecastLocation
+    if (!previous || previous.lat !== location.lat || previous.lng !== location.lng ||
+        previous.timezone !== location.timezone) {
+      this.clearForecast()
     }
-    this.worker.postMessage({
-      type: 'FETCH_FORECAST',
-      lat: location.lat,
-      lng: location.lng,
-      timezone: location.timezone,
-    })
+    this.showForecastError(null)
+    this.showLoading(!this.state.nights, 'Starting forecast…')
+    this.worker?.terminate()
+    this.worker = null
+
+    try {
+      const worker = new Worker(new URL('./weatherWorker.js', import.meta.url), { type: 'module' })
+      this.worker = worker
+      worker.onmessage = (event) => {
+        if (this.worker === worker) this.handleWorkerMessage(event)
+      }
+      worker.onerror = () => {
+        if (this.worker === worker) this.finishForecast({ message: 'Something went wrong fetching the forecast.' })
+      }
+      this.renderForecastStatus()
+      worker.postMessage({
+        type: 'FETCH_FORECAST',
+        lat: location.lat,
+        lng: location.lng,
+        timezone: location.timezone,
+      })
+    } catch {
+      this.finishForecast({ message: 'The forecast could not be started. Try again in a moment.' })
+    }
   }
 
   handleWorkerMessage(event) {
     const { type } = event.data
     if (type === 'PROGRESS') {
-      this.showLoading(true, event.data.step)
+      if (!this.state.nights) this.showLoading(true, event.data.step)
     } else if (type === 'FORECAST_READY') {
-      this.state.nights = event.data.nights
-      this.state.meta = event.data.meta ?? null
-      this.showLoading(false)
-      this.showForecastError(null)
-      this.renderDataNotice(this.state.meta)
-      this.renderTonight(event.data.nights[0])
-      this.renderOutlook(event.data.nights)
-    } else if (type === 'FORECAST_ERROR') {
-      this.showLoading(false)
-      // An upstream outage is not a bad location — reopening the picker just asks
-      // the user to re-enter a location that was never the problem.
-      if (event.data.code === 'UPSTREAM_UNAVAILABLE') {
-        this.showForecastError(event.data)
-      } else {
-        this.showLocationError(`Forecast failed: ${event.data.message}`)
-        this.openLocationPrompt(true)
+      const { nights, meta } = event.data
+      if (!nights?.length) {
+        this.finishForecast({ message: 'No forecast nights were returned.' })
+        return
       }
+      if (this.state.nights && meta?.cached?.length && meta.cached.length === meta.available.length) {
+        this.finishForecast({ message: 'Only cached model data was available.' })
+        return
+      }
+      this.state.nights = nights
+      this.state.meta = meta ?? null
+      this.state.forecastLocation = this.state.location
+      this.state.forecastFetchedAt = meta?.cached?.length ? null : new Date()
+      this.state.refreshFailed = false
+      this.closeConfidenceModal()
+      this.renderDataNotice(this.state.meta)
+      this.renderTonight(nights[0])
+      this.renderOutlook(nights)
+      this.finishForecast()
+    } else if (type === 'FORECAST_ERROR') {
+      this.finishForecast(event.data)
     }
   }
 
-  // Every forecast model failed. Show a real error state and hide the panels
-  // outright — stale or empty panels would read as "tonight is very poor".
+  finishForecast(error = null) {
+    this.worker?.terminate()
+    this.worker = null
+    this.showLoading(false)
+    if (error && this.state.nights) {
+      this.state.refreshFailed = true
+    } else {
+      this.showForecastError(error)
+    }
+    this.renderForecastStatus()
+  }
+
+  clearForecast() {
+    this.state.nights = null
+    this.state.meta = null
+    this.state.forecastLocation = null
+    this.state.forecastFetchedAt = null
+    this.state.refreshFailed = false
+    this.state.expandedOutlookIndex = null
+    this.closeConfidenceModal()
+    this.root.querySelector('#tonight-panel').setAttribute('hidden', '')
+    this.root.querySelector('#outlook-panel').setAttribute('hidden', '')
+    this.renderDataNotice(null)
+    this.renderForecastStatus()
+  }
+
+  renderForecastStatus() {
+    const { nights, meta, forecastFetchedAt, refreshFailed } = this.state
+    this.root.querySelector('#forecast-status').toggleAttribute('hidden', !nights)
+    const warning = this.root.querySelector('#forecast-refresh-warning')
+    warning.toggleAttribute('hidden', !refreshFailed)
+    if (!nights) return
+
+    const timeZone = safeTimeZone(meta?.timezone ?? this.state.location?.timezone)
+    const cached = (meta?.cached ?? []).map((model) => MODEL_LABEL[model] ?? model)
+    const status = this.root.querySelector('#forecast-freshness')
+    if (cached.length) {
+      status.textContent = `Using cached data for ${cached.join(', ')}. Those models could not be refreshed.`
+    } else if (forecastFetchedAt) {
+      const day = formatCivilDate(zonedDateString(forecastFetchedAt, timeZone), timeZone)
+      status.textContent = `Last fetched ${day} at ${formatTime(forecastFetchedAt, timeZone)} (site time)`
+    }
+
+    if (refreshFailed) {
+      const night = formatCivilDate(nights[0].date, timeZone)
+      warning.textContent = `Refresh failed. Showing the previous forecast, starting ${night}.`
+    }
+    const button = this.root.querySelector('#forecast-refresh-btn')
+    button.disabled = Boolean(this.worker)
+    button.textContent = this.worker ? 'Refreshing…' : 'Refresh forecast'
+  }
+
   showForecastError(error) {
     const panel = this.root.querySelector('#forecast-error')
     if (!error) {
       panel.setAttribute('hidden', '')
       return
     }
-    this.state.nights = null
-    this.state.meta = null
-    this.root.querySelector('#tonight-panel').setAttribute('hidden', '')
-    this.root.querySelector('#outlook-panel').setAttribute('hidden', '')
-    this.root.querySelector('#data-notice').setAttribute('hidden', '')
     const detail = (error.failures ?? []).map((f) => `${MODEL_LABEL[f.model] ?? f.model}: ${f.reason}`).join(' · ')
     this.root.querySelector('#forecast-error-detail').textContent = detail
       ? `No weather model could be reached. ${detail}`
-      : `No weather model could be reached. ${error.message ?? ''}`
+      : error.message ?? 'Try again in a moment.'
     panel.removeAttribute('hidden')
   }
 
@@ -590,12 +665,16 @@ export class App {
       el.setAttribute('hidden', '')
       return
     }
-    const missing = meta.missing.map((m) => MODEL_LABEL[m] ?? m).join(' and ')
+    const missing = meta.missing.map((m) => {
+      const failure = meta.failures?.find((item) => item.model === m)
+      const reason = failure?.reason?.includes('timed out') ? ' (timed out)' : ''
+      return `${MODEL_LABEL[m] ?? m}${reason}`
+    }).join(' and ')
     const present = meta.available.map((m) => MODEL_LABEL[m] ?? m).join(' + ')
     const pct = Math.round(meta.weightCoverage * 100)
     el.innerHTML = `
       <span class="data-notice-icon" aria-hidden="true">⚠</span>
-      <span><strong>Reduced confidence</strong> — ${escapeHtml(missing)} unavailable.
+      <span><strong>Model data unavailable</strong> — ${escapeHtml(missing)}.
       Blended from ${escapeHtml(present)} only (${pct}% of the usual ensemble weight).</span>`
     el.removeAttribute('hidden')
   }
@@ -993,8 +1072,8 @@ function renderHourCard(hour, nightIndex, hourIndex, timeZone) {
 function renderConfidenceModalBody(hour) {
   const agreementBadge = {
     agree: '<span class="agreement-badge agree">✓ Models Agree</span>',
-    mixed: '<span class="agreement-badge mixed">⚠ Mixed</span>',
-    disagree: '<span class="agreement-badge disagree">✗ Low Confidence</span>',
+    mixed: '<span class="agreement-badge mixed">⚠ Some Model Disagreement</span>',
+    disagree: '<span class="agreement-badge disagree">✗ Models Disagree</span>',
     // Only one model returned data — there is no agreement to report, and saying
     // "Models Agree" off a single opinion would overstate the confidence.
     single: '<span class="agreement-badge disagree">⚠ Single Model Only</span>',

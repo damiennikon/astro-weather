@@ -75,6 +75,26 @@ test('ICON fails: forecast still renders on the remaining two, flagged degraded'
   assert.equal(night.hours.find((h) => h.isDark).cloudIcon, null)
 })
 
+test('a model that stalls while reading its body times out and the other models still blend', async () => {
+  const body = clearFixture()
+  const fetchImpl = async (url, { signal }) => {
+    if (!new URL(url).searchParams.get('models').startsWith('icon')) return okResponse(body)
+    return {
+      ok: true,
+      json: () => new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      }),
+    }
+  }
+  const { nights, meta } = await buildForecast(SITE.lat, SITE.lng, SITE.tz, {
+    fetchImpl, now: NOW, timeoutMs: 5,
+  })
+  assert.deepEqual(meta.available, ['ecmwf', 'ukmo'])
+  assert.deepEqual(meta.missing, ['icon'])
+  assert.match(meta.failures[0].reason, /timed out/)
+  assert.ok(nights[0].nightAvg.score > 0)
+})
+
 test('ICON returns an Open-Meteo error payload: treated as failed, not as null data', async () => {
   const body = clearFixture()
   const { nights, meta } = await run(

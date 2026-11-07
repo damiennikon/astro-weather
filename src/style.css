@@ -1213,6 +1213,21 @@ input:focus-visible {
 
 /* --- Data availability states ------------------------------------------- */
 
+.forecast-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  margin: 0 0.75rem 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.forecast-status p {
+  margin: 0;
+}
+
 .data-notice {
   display: flex;
   align-items: flex-start;

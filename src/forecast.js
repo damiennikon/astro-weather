@@ -79,26 +79,21 @@ export async function fetchModel(
 ) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
-  let res
+  let res, json
   try {
     res = await fetchImpl(url, { signal: controller.signal })
+    // Keep the timeout active until the forecast body has been read.
+    json = await res.json()
   } catch (error) {
-    if (error?.name === 'AbortError') {
+    if (controller.signal.aborted) {
       throw new Error(`Forecast request timed out after ${timeoutMs / 1000}s`)
     }
+    // Open-Meteo error payloads usually include a reason. If the body could
+    // not be read as JSON, fall back to the status code.
+    if (res) throw new Error(`HTTP ${res.status} (unparseable response)`)
     throw error
   } finally {
     clearTimeout(timer)
-  }
-
-  // Open-Meteo puts the useful diagnosis in the body ({error, reason}) even on a
-  // 4xx, so parse before deciding what to report. A body that will not parse at
-  // all falls back to the status code.
-  let json = null
-  try {
-    json = await res.json()
-  } catch {
-    throw new Error(`HTTP ${res.status} (unparseable response)`)
   }
 
   if (!res.ok || json?.error) {
