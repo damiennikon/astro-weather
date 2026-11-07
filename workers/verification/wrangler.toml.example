@@ -1,0 +1,24 @@
+name = "astro-verification"
+main = "index.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+# Four pilot runs per day. Cron expressions are UTC.
+crons = ["0 0,6,12,18 * * *"]
+
+[[d1_databases]]
+binding = "VERIFICATION_DB"
+database_name = "astro-verification"
+database_id = "REPLACE_AFTER_MANUAL_D1_CREATION"
+
+[[r2_buckets]]
+binding = "VERIFICATION_ARCHIVE"
+bucket_name = "astro-verification-archive"
+
+[[kv_namespaces]]
+binding = "VERIFICATION_STATE"
+id = "REPLACE_AFTER_MANUAL_KV_CREATION"
+
+[vars]
+BOM_STATION_FEED_BASE = "https://www.bom.gov.au/fwo/IDQ60901"
