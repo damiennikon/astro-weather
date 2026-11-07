@@ -14,7 +14,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -30,14 +30,22 @@ jobs:
 
       - run: npm ci
 
-      # TZ is pinned in the npm script: the timezone regression has to run under a
+      # TZ is pinned by the test launcher: the timezone regression has to run under a
       # viewer zone that differs from the sites it exercises, or it passes trivially.
       - name: Test
         run: npm test
 
+      # Keep the production bundle inside the PR gate. The deploy job repeats the
+      # build on pushes to main with production secrets, but a PR must also prove
+      # that the application can be bundled before it is merged.
+      - name: Build
+        run: npm run build
+        env:
+          VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
+          VITE_SUBSCRIBE_WORKER_URL: ${{ secrets.VITE_SUBSCRIBE_WORKER_URL }}
+
   build-and-deploy:
-    # Deploy is gated on the tests, not merely ordered after them — if `test` fails,
-    # this job never starts and the workflow fails without publishing anything.
+    # Deploy starts only after the tests and validation build succeed.
     needs: test
     # Only a real push to main publishes. PR and manual runs stop at the test job.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
