@@ -14,15 +14,15 @@ export function defaultNightIndex(nights, now, timeZone) {
   return Math.max(0, upcoming)
 }
 
-export function skyReading(night, now, timeZone, activeNightDate) {
+export function skyReading(night, now) {
   if (isActiveNight(night, now)) {
     const hour = night.hours.find(({ time }) => time <= now && now.getTime() < +time + HOUR_MS)
     return { cloud: hour?.cloud ?? null, hour: hour?.time ?? null }
   }
-  // The next evening is still a future night during the preceding night's
-  // post-midnight hours, even when both now and that evening share a date.
-  const currentDate = activeNightDate ?? zonedDateString(now, safeTimeZone(timeZone))
-  return { cloud: night.date > currentDate ? night.nightAvg?.cloud ?? null : null, hour: null }
+  // The forecast window, not its calendar label, decides whether this is an
+  // upcoming night. Once it starts, only its matching hourly reading is used.
+  const upcoming = now < night.displayStart && night.wholeNightSummaryAvailable !== false
+  return { cloud: upcoming ? night.nightAvg?.cloud ?? null : null, hour: null }
 }
 
 export function formatDashboardHour(night, time, timeZone) {

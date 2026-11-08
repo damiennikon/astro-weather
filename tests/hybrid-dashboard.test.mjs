@@ -29,7 +29,7 @@ test('cold midnight load adds an opt-in display night from the same three fetche
   assert.equal(night.date, '2026-08-18')
   assert.equal(wholeNightSummaryAvailable, false)
   assert.equal(night.hours[0].cloud, null)
-  assert.deepEqual(skyReading(night, now, BRISBANE), {
+  assert.deepEqual(skyReading(night, now), {
     hour: instant('2026-08-18T14:00:00Z'), cloud: 0,
   })
   assert.equal(defaultNightIndex([night, ...baseline.nights], now, BRISBANE), 0)
@@ -52,18 +52,34 @@ test('current, future and unavailable sky readings remain separate as the hour r
     displayEnd: instant('2026-08-19T21:00:00Z'), hours: [], nightAvg: { cloud: 75 },
   }
   const beforeMidnight = instant('2026-08-18T13:59:59Z')
-  assert.equal(skyReading(night, beforeMidnight, BRISBANE).cloud, 8)
-  assert.equal(skyReading(future, beforeMidnight, BRISBANE).cloud, 75)
+  assert.equal(skyReading(night, beforeMidnight).cloud, 8)
+  assert.equal(skyReading(future, beforeMidnight).cloud, 75)
   assert.equal(nextDashboardBoundary([night, future], beforeMidnight, BRISBANE), +night.hours[1].time)
   const midnight = instant('2026-08-18T14:00:00Z')
-  assert.equal(skyReading(night, midnight, BRISBANE).cloud, 25)
-  assert.equal(skyReading(future, midnight, BRISBANE, night.date).cloud, 75)
-  assert.deepEqual(skyReading(night, instant('2026-08-18T15:00:00Z'), BRISBANE), { cloud: null, hour: null })
-  assert.equal(skyReading(night, instant('2026-08-18T16:15:00Z'), BRISBANE).cloud, null)
+  assert.equal(skyReading(night, midnight).cloud, 25)
+  assert.equal(skyReading(future, midnight).cloud, 75)
+  assert.deepEqual(skyReading(night, instant('2026-08-18T15:00:00Z')), { cloud: null, hour: null })
+  assert.equal(skyReading(night, instant('2026-08-18T16:15:00Z')).cloud, null)
   const dawn = instant('2026-08-18T21:00:00Z')
-  assert.equal(skyReading(night, dawn, BRISBANE).cloud, null)
-  assert.equal(skyReading(future, dawn, BRISBANE).cloud, null)
+  assert.equal(skyReading(night, dawn).cloud, null)
+  assert.equal(skyReading(future, dawn).cloud, 75)
   assert.equal(defaultNightIndex([night, future], dawn, BRISBANE), 1)
+})
+
+test('at 12:55 the hero previews tonight’s 39% average, then switches to exact hourly data at 17:00', () => {
+  const night = {
+    date: '2026-11-08',
+    displayStart: instant('2026-11-08T07:00:00Z'),
+    displayEnd: instant('2026-11-08T21:00:00Z'),
+    nightAvg: { cloud: 39 },
+    hours: [{ time: instant('2026-11-08T07:00:00Z'), cloud: 50 }],
+  }
+  const lunch = instant('2026-11-08T02:55:00Z') // Brisbane site time.
+  assert.deepEqual(skyReading(night, lunch), { cloud: 39, hour: null })
+  assert.equal(nextDashboardBoundary([night], lunch, BRISBANE), +night.displayStart)
+  assert.deepEqual(skyReading(night, night.displayStart), { cloud: 50, hour: night.displayStart })
+  assert.deepEqual(skyReading(night, instant('2026-11-08T08:00:00Z')), { cloud: null, hour: null })
+  assert.deepEqual(skyReading({ ...night, nightAvg: { cloud: null } }, lunch), { cloud: null, hour: null })
 })
 
 test('Sydney daylight-saving repeat selects each 02:00 by its own instant', () => {
@@ -75,8 +91,8 @@ test('Sydney daylight-saving repeat selects each 02:00 by its own instant', () =
     displayEnd: instant('2026-04-04T20:00:00Z'), nightAvg: { cloud: 33 },
     hours: [{ time: first, cloud: 8 }, { time: second, cloud: 75 }],
   }
-  assert.equal(skyReading(night, instant('2026-04-04T15:50:00Z'), timeZone).cloud, 8)
-  assert.equal(skyReading(night, instant('2026-04-04T16:10:00Z'), timeZone).cloud, 75)
+  assert.equal(skyReading(night, instant('2026-04-04T15:50:00Z')).cloud, 8)
+  assert.equal(skyReading(night, instant('2026-04-04T16:10:00Z')).cloud, 75)
   const earlyLabel = formatDashboardHour(night, first, timeZone)
   const lateLabel = formatDashboardHour(night, second, timeZone)
   assert.match(earlyLabel, /^02:00 /)

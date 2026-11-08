@@ -775,8 +775,6 @@ export class App {
     if (!nights?.length) return
     const timeZone = this.state.meta?.timezone ?? this.state.location?.timezone
     const currentIndex = defaultNightIndex(nights, now, timeZone)
-    const current = nights[currentIndex]
-    this.state.activeNightDate = isActiveNight(current, now) ? current.date : null
     const requestedIndex = nights.findIndex((night) => night.date === selectedNightDate)
     const index = requestedIndex < 0 ? currentIndex : requestedIndex
     if (requestedIndex < 0) this.state.selectedNightDate = null
@@ -856,7 +854,7 @@ export class App {
 
     const hours = this.root.querySelector('#tonight-hourly')
     hours.innerHTML = renderHourlyScroll(night, nightIndex, timeZone, true)
-    const reading = skyReading(night, now, timeZone, this.state.activeNightDate)
+    const reading = skyReading(night, now)
     const currentHour = night.hours.findIndex((hour) => reading.hour && +hour.time === +reading.hour)
     const bestHour = night.hours.findIndex((hour) => fullSummary && +hour.time === +night.optimalWindow?.startHour)
     const usableHour = night.hours.findIndex((hour) => hour.cloud != null)
@@ -870,13 +868,13 @@ export class App {
 
   updateHeroSky(night, now) {
     const timeZone = this.state.meta?.timezone ?? this.state.location?.timezone
-    const { cloud, hour } = skyReading(night, now, timeZone, this.state.activeNightDate)
+    const { cloud, hour } = skyReading(night, now)
     const canvas = this.root.querySelector('#hero-clouds')
     const sky = this.root.querySelector('#hero-sky')
     sky.dataset.sky = cloud == null || !paintHeroClouds(canvas, cloud) ? 'unavailable' : 'forecast'
     this.root.querySelector('#hero-sky-label').textContent = cloud == null
       ? 'Illustrative sky · cloud forecast unavailable'
-      : `Illustrative sky · ${hour ? formatDashboardHour(night, hour, timeZone) + ' site forecast' : 'night average'} · ${formatPercent(cloud)} cloud`
+      : `Illustrative sky · ${hour ? formatDashboardHour(night, hour, timeZone) + ' site forecast' : 'upcoming night average'} · ${formatPercent(cloud)} cloud`
   }
 
   renderHourDetails(night, index) {

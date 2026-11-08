@@ -108,7 +108,7 @@ test('the hybrid dashboard renders the active post-midnight forecast and switche
   const future = nights[0] // The upcoming evening still counts as future after midnight.
   app.state.selectedNightDate = future.date
   app.renderDashboard(new Date(), true)
-  assert.match(get('#hero-sky-label').textContent, /night average/)
+  assert.match(get('#hero-sky-label').textContent, /upcoming night average/)
   assert.match(get('#hero-readout').innerHTML, /avg cloud/)
   assert.match(get('#tonight-hourly').innerHTML, /data-night-index="1"/)
   assert.match(get('#hour-cloud-layers').innerHTML, /Low.*Mid.*High/s)
