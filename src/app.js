@@ -51,7 +51,6 @@ export class App {
       refreshFailed: false,
       selectedNightDate: null,
       dashboardNightIndex: null,
-      expandedOutlookIndex: null,
       modalContext: null,
       satelliteVisible: false,
     }
@@ -151,11 +150,6 @@ export class App {
               <div><dt>Milky Way</dt><dd id="mw-range"></dd></div>
             </dl>
           </section>
-        </section>
-
-        <section id="outlook-panel" class="panel" hidden>
-          <h2 class="panel-title">Multi-night outlook</h2>
-          <div id="outlook-list" class="outlook-list"></div>
         </section>
 
         <section id="satellite-panel" class="panel">
@@ -290,7 +284,6 @@ export class App {
     })
 
     this.root.querySelector('#tonight-hourly').addEventListener('click', (e) => this.handleHourCardClick(e))
-    this.root.querySelector('#outlook-list').addEventListener('click', (e) => this.handleOutlookClick(e))
 
     this.root.querySelector('#notif-modal-close').addEventListener('click', () => {
       this.root.querySelector('#notif-modal').setAttribute('hidden', '')
@@ -650,13 +643,10 @@ export class App {
         this.finishForecast({ message: 'Only cached model data was available.' })
         return
       }
-      const expandedDate = this.state.nights?.[this.state.expandedOutlookIndex]?.date
       this.state.nights = inProgressNight ? [
         { ...inProgressNight.night, wholeNightSummaryAvailable: inProgressNight.wholeNightSummaryAvailable },
         ...nights,
       ] : nights
-      const expandedIndex = this.state.nights.findIndex((night) => night.date === expandedDate)
-      this.state.expandedOutlookIndex = expandedIndex === -1 ? null : expandedIndex
       this.state.meta = meta ?? null
       this.state.forecastLocation = this.state.location
       this.state.forecastFetchedAt = meta?.cached?.length ? null : new Date()
@@ -691,10 +681,8 @@ export class App {
     this.state.refreshFailed = false
     this.state.selectedNightDate = null
     this.state.dashboardNightIndex = null
-    this.state.expandedOutlookIndex = null
     this.closeConfidenceModal()
     this.root.querySelector('#tonight-panel').setAttribute('hidden', '')
-    this.root.querySelector('#outlook-panel').setAttribute('hidden', '')
     this.renderDataNotice(null)
     this.renderForecastStatus()
   }
@@ -781,9 +769,7 @@ export class App {
     this.renderNightPicker(index, now, timeZone)
     if (redraw || index !== this.state.dashboardNightIndex) {
       this.state.dashboardNightIndex = index
-      if (this.state.expandedOutlookIndex === index) this.state.expandedOutlookIndex = null
       this.renderTonight(nights[index], index, now)
-      this.renderOutlook(nights)
     } else {
       this.updateHeroSky(nights[index], now)
     }
@@ -797,9 +783,16 @@ export class App {
     const today = zonedDateString(now, safeTimeZone(timeZone))
     const markup = this.state.nights.map((night, index) => {
       const label = night.date === today ? 'Tonight' : isActiveNight(night, now) ? 'In progress' : ''
+      const date = formatNightDate(night.date, timeZone)
+      const score = night.wholeNightSummaryAvailable === false ? null : night.nightAvg?.score ?? null
+      const verdict = scoreToVerdict(score)
+      const scoreText = score === null ? '—' : Math.round(score)
+      const scoreLabel = score === null ? 'suitability score unavailable' : `suitability ${scoreText} out of 100, ${VERDICT_LABEL[verdict]}`
+      const buttonLabel = [label, date, scoreLabel].filter(Boolean).join(', ')
       return `
-        <button type="button" data-select-night="${escapeHtml(night.date)}" aria-pressed="${index === selectedIndex}">
-          ${label ? `<strong>${label}</strong>` : ''}<span>${formatNightDate(night.date, timeZone)}</span>
+        <button type="button" data-select-night="${escapeHtml(night.date)}" aria-pressed="${index === selectedIndex}" aria-label="${escapeHtml(buttonLabel)}">
+          <span class="night-picker-date">${label ? `<strong>${label}</strong>` : ''}<span>${date}</span></span>
+          <span class="night-picker-score verdict-text-${verdict}" aria-hidden="true">${scoreText}</span>
         </button>`
     }).join('')
     if (markup === this.nightPickerMarkup) return
@@ -853,7 +846,7 @@ export class App {
     this.root.querySelector('#optimal-window-callout').innerHTML = renderBestWindow(night, timeZone)
 
     const hours = this.root.querySelector('#tonight-hourly')
-    hours.innerHTML = renderHourlyScroll(night, nightIndex, timeZone, true)
+    hours.innerHTML = renderHourlyScroll(night, nightIndex, timeZone)
     const reading = skyReading(night, now)
     const currentHour = night.hours.findIndex((hour) => reading.hour && +hour.time === +reading.hour)
     const bestHour = night.hours.findIndex((hour) => fullSummary && +hour.time === +night.optimalWindow?.startHour)
@@ -892,53 +885,6 @@ export class App {
   }
 
   // ---------------------------------------------------------------------
-  // 7-day outlook
-  // ---------------------------------------------------------------------
-
-  renderOutlook(nights) {
-    const panel = this.root.querySelector('#outlook-panel')
-    panel.removeAttribute('hidden')
-    const list = this.root.querySelector('#outlook-list')
-    const timeZone = this.state.location?.timezone
-
-    list.innerHTML = nights
-      .map((night, nightIndex) => {
-        if (nightIndex === this.state.dashboardNightIndex) return ''
-        const expanded = this.state.expandedOutlookIndex === nightIndex
-        const fullSummary = night.wholeNightSummaryAvailable !== false
-        const avgScore = fullSummary ? night.nightAvg.score : null
-        const verdict = scoreToVerdict(avgScore)
-        return `
-        <div class="outlook-card outlook-verdict-${verdict}" data-night-index="${nightIndex}">
-          <button class="outlook-summary" data-action="toggle" data-night-index="${nightIndex}">
-            <span class="outlook-date">${formatNightDate(night.date, timeZone)}</span>
-            <span class="outlook-score-badge verdict-${verdict}">${avgScore !== null ? Math.round(avgScore) : '—'}</span>
-            <span class="outlook-stats">
-              <span class="outlook-stat">☁ ${formatPercent(fullSummary ? night.nightAvg.cloud : null)}</span>
-              <span class="outlook-stat">💧 ${formatPercent(fullSummary ? night.nightAvg.humidity : null)}</span>
-              <span class="outlook-stat">🌕 ${formatPercent(fullSummary && night.nightAvg.moonIllum !== null ? night.nightAvg.moonIllum * 100 : null)}</span>
-            </span>
-          </button>
-          <div class="outlook-expanded" ${expanded ? '' : 'hidden'}>
-            ${expanded ? `<div class="hourly-scroll">${renderHourlyScroll(night, nightIndex, timeZone)}</div>` : ''}
-          </div>
-        </div>`
-      })
-      .join('')
-  }
-
-  handleOutlookClick(e) {
-    const toggleBtn = e.target.closest('[data-action="toggle"]')
-    if (toggleBtn) {
-      const nightIndex = Number(toggleBtn.dataset.nightIndex)
-      this.state.expandedOutlookIndex = this.state.expandedOutlookIndex === nightIndex ? null : nightIndex
-      this.renderOutlook(this.state.nights)
-      return
-    }
-    this.handleHourCardClick(e)
-  }
-
-  // ---------------------------------------------------------------------
   // Confidence modal
   // ---------------------------------------------------------------------
 
@@ -949,7 +895,7 @@ export class App {
     const hourIndex = Number(card.dataset.hourIndex)
     const night = this.state.nights[nightIndex]
     const hour = night.hours[hourIndex]
-    if (e.currentTarget.id === 'tonight-hourly') this.renderHourDetails(night, hourIndex)
+    this.renderHourDetails(night, hourIndex)
     this.openConfidenceModal(night, hour, card)
   }
 
@@ -1247,10 +1193,10 @@ function escapeHtml(str) {
 }
 
 // ---------------------------------------------------------------------
-// Hourly scroll rendering (shared by Tonight panel + Outlook expansion)
+// Hourly scroll rendering
 // ---------------------------------------------------------------------
 
-function renderHourlyScroll(night, nightIndex, timeZone, dashboard = false) {
+function renderHourlyScroll(night, nightIndex, timeZone) {
   let html = ''
   let lastIsDark = null
   night.hours.forEach((hour, hourIndex) => {
@@ -1258,53 +1204,34 @@ function renderHourlyScroll(night, nightIndex, timeZone, dashboard = false) {
       html += `<div class="hour-divider">${hour.isDark ? 'Astro Dark Begins' : 'Astro Dark Ends'}</div>`
     }
     lastIsDark = hour.isDark
-    html += renderHourCard(hour, nightIndex, hourIndex, timeZone, dashboard ? night : null)
+    html += renderHourCard(night, hour, nightIndex, hourIndex, timeZone)
   })
   return html
 }
 
-function renderHourCard(hour, nightIndex, hourIndex, timeZone, dashboardNight) {
-  const timeLabel = dashboardNight ? formatDashboardHour(dashboardNight, hour.time, timeZone) : formatTime(hour.time, timeZone)
-  if (dashboardNight) {
-    const window = dashboardNight.wholeNightSummaryAvailable === false ? null : dashboardNight.optimalWindow
-    const best = Boolean(window && hour.score != null && hour.time >= window.startHour && hour.time <= window.endHour)
-    const quality = !hour.isDark ? 'Outside darkness'
-      : hour.score == null ? 'Score unavailable'
-      : `${hour.score}/100 · ${VERDICT_LABEL[hour.verdict]}`
-    const moon = hour.moonAlt == null ? '' : hour.moonAlt > 0 ? 'Moon up' : 'Moon down'
-    const status = hour.cloud == null ? 'Cloud unavailable'
-      : hour.confidence === 'partial' ? 'Partial inputs'
-      : hour.agreement === 'disagree' ? 'Models disagree'
-      : hour.agreement === 'mixed' ? 'Some disagreement'
-      : hour.agreement === 'single' ? 'Single model'
-      : ''
-    return `
-      <button type="button" class="hour-card dashboard-hour ${hour.isDark ? 'dark' : 'daylight'}" data-night-index="${nightIndex}" data-hour-index="${hourIndex}" data-best="${best}" aria-pressed="false">
-        <span class="hour-time">${timeLabel}</span>
-        <span>${hour.cloud == null ? '— cloud' : `${formatPercent(hour.cloud)} cloud`}</span>
-        <strong class="hour-quality verdict-text-${hour.verdict}">${quality}</strong>
-        ${moon ? `<small>${moon}</small>` : ''}
-        ${!hour.isDark && hour.temp != null ? `<small>${Math.round(hour.temp)} °C</small>` : ''}
-        ${status ? `<small>${status}</small>` : ''}
-        ${best ? '<small class="hour-best">Best window</small>' : ''}
-      </button>`
-  }
-  if (hour.isDark) {
-    const verdict = hour.verdict ?? 'unavailable'
-    return `
-      <button class="hour-card dark" data-night-index="${nightIndex}" data-hour-index="${hourIndex}" title="${VERDICT_LABEL[verdict] ?? ''}">
-        <span class="hour-time">${timeLabel}</span>
-        <span class="verdict-dot verdict-${verdict}"></span>
-        <span class="hour-score">${hour.score ?? '—'}</span>
-        <span class="hour-cloud">${formatPercent(hour.cloud)}</span>
-      </button>`
-  }
+function renderHourCard(night, hour, nightIndex, hourIndex, timeZone) {
+  const timeLabel = formatDashboardHour(night, hour.time, timeZone)
+  const window = night.wholeNightSummaryAvailable === false ? null : night.optimalWindow
+  const best = Boolean(window && hour.score != null && hour.time >= window.startHour && hour.time <= window.endHour)
+  const quality = !hour.isDark ? 'Outside darkness'
+    : hour.score == null ? 'Score unavailable'
+    : `${hour.score}/100 · ${VERDICT_LABEL[hour.verdict]}`
+  const moon = hour.moonAlt == null ? '' : hour.moonAlt > 0 ? 'Moon up' : 'Moon down'
+  const status = hour.cloud == null ? 'Cloud unavailable'
+    : hour.confidence === 'partial' ? 'Partial inputs'
+    : hour.agreement === 'disagree' ? 'Models disagree'
+    : hour.agreement === 'mixed' ? 'Some disagreement'
+    : hour.agreement === 'single' ? 'Single model'
+    : ''
   return `
-    <button class="hour-card daylight" data-night-index="${nightIndex}" data-hour-index="${hourIndex}">
+    <button type="button" class="hour-card dashboard-hour ${hour.isDark ? 'dark' : 'daylight'}" data-night-index="${nightIndex}" data-hour-index="${hourIndex}" data-best="${best}" aria-pressed="false">
       <span class="hour-time">${timeLabel}</span>
-      <span class="sun-icon">🌅</span>
-      <span class="hour-cloud">${formatPercent(hour.cloud)}</span>
-      <span class="hour-temp">${hour.temp !== null ? Math.round(hour.temp) + '°' : '—'}</span>
+      <span>${hour.cloud == null ? '— cloud' : `${formatPercent(hour.cloud)} cloud`}</span>
+      <strong class="hour-quality verdict-text-${hour.verdict}">${quality}</strong>
+      ${moon ? `<small>${moon}</small>` : ''}
+      ${!hour.isDark && hour.temp != null ? `<small>${Math.round(hour.temp)} °C</small>` : ''}
+      ${status ? `<small>${status}</small>` : ''}
+      ${best ? '<small class="hour-best">Best window</small>' : ''}
     </button>`
 }
 

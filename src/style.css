@@ -207,9 +207,7 @@ input:focus-visible {
 }
 
 /* Emoji glyphs ignore CSS colour vars, so push them toward red in Red Mode. */
-.red-mode .sun-icon,
-.red-mode .icon-btn,
-.red-mode .outlook-stats {
+.red-mode .icon-btn {
   filter: sepia(1) saturate(4) hue-rotate(-28deg) brightness(0.6);
 }
 
@@ -334,39 +332,21 @@ input:focus-visible {
    so glows, borders, and badges stay consistent and Red Mode–safe.
 --------------------------------------------------------------------- */
 
-.verdict-dot.verdict-great,
-.outlook-score-badge.verdict-great,
-.outlook-verdict-great,
 .verdict-ring-great {
   --v: var(--great);
 }
-.verdict-dot.verdict-good,
-.outlook-score-badge.verdict-good,
-.outlook-verdict-good,
 .verdict-ring-good {
   --v: var(--good);
 }
-.verdict-dot.verdict-fair,
-.outlook-score-badge.verdict-fair,
-.outlook-verdict-fair,
 .verdict-ring-fair {
   --v: var(--fair);
 }
-.verdict-dot.verdict-poor,
-.outlook-score-badge.verdict-poor,
-.outlook-verdict-poor,
 .verdict-ring-poor {
   --v: var(--poor);
 }
-.verdict-dot.verdict-verypoor,
-.outlook-score-badge.verdict-verypoor,
-.outlook-verdict-verypoor,
 .verdict-ring-verypoor {
   --v: var(--vpoor);
 }
-.verdict-dot.verdict-unavailable,
-.outlook-score-badge.verdict-unavailable,
-.outlook-verdict-unavailable,
 .verdict-ring-unavailable {
   --v: var(--text-dim);
 }
@@ -398,16 +378,24 @@ input:focus-visible {
 .night-picker button {
   flex: 0 0 auto;
   display: grid;
-  place-content: center;
-  gap: 0.1rem;
-  min-width: 5.6rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.35rem;
   min-height: 44px;
-  padding: 0.32rem 0.6rem;
+  padding: 0.28rem 0.38rem 0.28rem 0.55rem;
   border: 1px solid var(--glass-border);
   border-radius: 0.6rem;
   background: var(--bg-card);
   color: var(--text-muted);
   font-size: 0.78rem;
+}
+
+.night-picker-date {
+  display: grid;
+  gap: 0.06rem;
+  text-align: left;
+  line-height: 1.22;
+  white-space: nowrap;
 }
 
 .night-picker button strong { color: var(--text-primary); }
@@ -416,6 +404,21 @@ input:focus-visible {
   background: color-mix(in srgb, var(--accent) 15%, var(--bg-card));
   color: var(--accent);
 }
+
+.night-picker-score {
+  display: grid;
+  place-items: center;
+  min-width: 1.85rem;
+  min-height: 1.6rem;
+  padding: 0.1rem 0.18rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, currentColor 13%, var(--bg-card));
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.red-mode .night-picker-score { color: var(--text-primary); }
 
 .night-hero {
   position: relative;
@@ -732,53 +735,6 @@ body.red-mode .hero-photo-plane { filter: grayscale(1) sepia(1) saturate(5) hue-
   color: var(--text-dim);
 }
 
-.hour-score {
-  font-family: var(--font-display);
-  font-size: 1.3rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
-.hour-cloud,
-.hour-temp {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.sun-icon {
-  font-size: 0.9rem;
-  filter: saturate(0.5) brightness(0.85);
-}
-
-.verdict-dot {
-  width: 0.85rem;
-  height: 0.85rem;
-  border-radius: 50%;
-  background: var(--v, var(--text-dim));
-  box-shadow:
-    0 0 4px color-mix(in srgb, var(--v, transparent) 90%, transparent),
-    0 0 12px color-mix(in srgb, var(--v, transparent) 55%, transparent);
-}
-
-.outlook-score-badge {
-  background: var(--v, var(--text-dim));
-  color: var(--bg-primary);
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 0.95rem;
-  font-variant-numeric: tabular-nums;
-  border-radius: 999px;
-  padding: 0.15rem 0;
-  /* Fixed width (not min-width) so every row's pill occupies the same slot and
-     the pills form a straight column regardless of 1–3 digit scores. */
-  flex: 0 0 auto;
-  width: 2.6rem;
-  text-align: center;
-  box-shadow: 0 0 14px color-mix(in srgb, var(--v, transparent) 45%, transparent);
-}
-
 .hour-divider {
   flex: 0 0 auto;
   display: flex;
@@ -795,92 +751,6 @@ body.red-mode .hero-photo-plane { filter: grayscale(1) sepia(1) saturate(5) hue-
   padding: 0 0.3rem;
   border-left: 1px dashed color-mix(in srgb, var(--accent) 35%, transparent);
   border-right: 1px dashed color-mix(in srgb, var(--accent) 35%, transparent);
-}
-
-/* ---------------------------------------------------------------------
-   7-Day outlook
---------------------------------------------------------------------- */
-
-.outlook-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.outlook-card {
-  background: color-mix(in srgb, var(--bg-card) 65%, transparent);
-  border: 1px solid var(--glass-border);
-  border-left: 3px solid var(--v, var(--border));
-  border-radius: 0.6rem;
-  overflow: hidden;
-  box-shadow: inset 0 1px 0 var(--glass-highlight);
-}
-
-.outlook-summary {
-  width: 100%;
-  background: none;
-  border: none;
-  color: var(--text-primary);
-  padding: 0.8rem 0.65rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  text-align: left;
-  transition: background-color 0.2s ease;
-}
-
-.outlook-summary:hover {
-  background: color-mix(in srgb, var(--bg-card-hover) 70%, transparent);
-}
-
-.outlook-date {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-family: var(--font-display);
-  font-size: 1.05rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.outlook-stats {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  /* Fixed-width columns so the ☁/💧/🌕 groups align vertically across rows —
-     auto-sized columns would resize per row with the values. */
-  flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: repeat(3, 3.1rem);
-  gap: 0.25rem;
-  font-variant-numeric: tabular-nums;
-}
-
-@media (max-width: 430px) {
-  .outlook-stats {
-    grid-template-columns: repeat(3, 2.85rem);
-    gap: 0.2rem;
-    font-size: 0.7rem;
-  }
-}
-
-.outlook-expanded {
-  border-top: 1px solid var(--glass-border);
-  padding: 0.5rem;
-}
-
-/* The expansion is an innerHTML re-render, so animate the mount instead of
-   a height transition — opacity + transform only, no layout properties. */
-.outlook-expanded:not([hidden]) {
-  animation: rise-in 0.28s ease;
-}
-
-@keyframes rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
 }
 
 /* ---------------------------------------------------------------------
@@ -1281,10 +1151,6 @@ body.red-mode .hero-photo-plane { filter: grayscale(1) sepia(1) saturate(5) hue-
 
 @media (prefers-reduced-motion: reduce) {
   body::after {
-    animation: none;
-  }
-
-  .outlook-expanded:not([hidden]) {
     animation: none;
   }
 
