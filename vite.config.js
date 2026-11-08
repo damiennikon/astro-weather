@@ -16,7 +16,7 @@ export default defineConfig({
       srcDir: '.',
       filename: 'sw.js',
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],
       },
       manifest: {
         name: 'Astro Weather',
