@@ -1,20 +1,20 @@
 :root {
-  --bg-primary:    #0a0e14;
-  --bg-card:       #111820;
-  --bg-card-hover: #1a2535;
+  --bg-primary:    #090d13;
+  --bg-card:       #171c24;
+  --bg-card-hover: #172231;
   --border:        #1a2d42;
-  --accent:        #c8a96e;   /* amber */
+  --accent:        #e5b86d;
   --accent-dim:    #a08040;
-  --text-primary:  #e8eaf0;
-  --text-muted:    #8a9ab0;
-  --text-dim:      #556070;
+  --text-primary:  #f3efe7;
+  --text-muted:    #bbc2d0;
+  --text-dim:      #919bad;
 
   /* Verdict colours */
-  --great:  #4caf72;
-  --good:   #c8a96e;
-  --fair:   #e08030;
-  --poor:   #d04040;
-  --vpoor:  #801818;
+  --great:  #9add9f;
+  --good:   #81c88c;
+  --fair:   #e5b86d;
+  --poor:   #ed9b87;
+  --vpoor:  #e38488;
 
   /* Red Mode source colours */
   --rm-bg:     #0d0000;
@@ -26,15 +26,21 @@
   /* Glass surfaces — declared explicitly here AND in .red-mode because var()
      inside a custom property resolves at the declaring element, so deriving
      these from --bg-card would not re-resolve when Red Mode swaps it. */
-  --glass-bg:        rgba(17, 24, 32, 0.55);
-  --glass-bg-strong: rgba(17, 24, 32, 0.82);
-  --glass-border:    rgba(94, 140, 198, 0.22);
+  --glass-bg:        rgba(23, 28, 36, 0.75);
+  --glass-bg-strong: #171c24;
+  --glass-border:    #38394d;
   --glass-highlight: rgba(190, 214, 255, 0.08);
 
   /* Sky */
   --bg-nebula:   #16233a;
   --star-bright: rgba(226, 234, 248, 0.65);
   --star-dim:    rgba(180, 200, 230, 0.35);
+  --hero-base: #111725;
+  --hero-neutral: linear-gradient(145deg, #172033, #27333f);
+  --hero-scrim: linear-gradient(90deg, #080c15 0%, #080c15dd 28%, #080c1552 60%, transparent 92%),
+                linear-gradient(0deg, #080c15cc, transparent 47%);
+  --darkness-bg: #312545;
+  --darkness-text: #e4d6fd;
 
   /* Typography */
   --font-display: 'Barlow Condensed', sans-serif;
@@ -70,6 +76,12 @@
   --bg-nebula:   #1c0500;
   --star-bright: rgba(204, 60, 20, 0.35);
   --star-dim:    rgba(160, 40, 10, 0.22);
+  --hero-base: #190403;
+  --hero-neutral: linear-gradient(145deg, #210806, #33100b);
+  --hero-scrim: linear-gradient(90deg, #120200, #120200dd 28%, #12020052 70%, transparent),
+                linear-gradient(0deg, #120200d9, transparent 47%);
+  --darkness-bg: #360f0b;
+  --darkness-text: #e6a398;
 }
 
 *,
@@ -176,10 +188,10 @@ input:focus-visible {
 }
 
 #app {
-  max-width: 720px;
+  max-width: 1080px;
   margin: 0 auto;
   min-height: 100vh;
-  padding-bottom: 2rem;
+  padding: 0 env(safe-area-inset-right) max(2rem, env(safe-area-inset-bottom)) env(safe-area-inset-left);
 }
 
 /* Red Mode vignette — a fixed red darkening around the screen edges to
@@ -195,7 +207,6 @@ input:focus-visible {
 }
 
 /* Emoji glyphs ignore CSS colour vars, so push them toward red in Red Mode. */
-.red-mode .ephemeris-icon,
 .red-mode .sun-icon,
 .red-mode .icon-btn,
 .red-mode .outlook-stats {
@@ -210,7 +221,7 @@ input:focus-visible {
   position: sticky;
   top: 0;
   z-index: 40;
-  padding: 1rem;
+  padding: max(0.65rem, env(safe-area-inset-top)) 0.85rem 0.45rem;
   border-bottom: 1px solid var(--glass-border);
   background: color-mix(in srgb, var(--bg-primary) 72%, transparent);
   -webkit-backdrop-filter: blur(14px);
@@ -224,28 +235,25 @@ input:focus-visible {
 }
 
 .app-title {
-  font-size: 2rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  line-height: 1;
-  background: linear-gradient(180deg, var(--text-primary) 30%, color-mix(in srgb, var(--text-primary) 55%, var(--accent)));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font: 600 clamp(1.42rem, 5.5vw, 2.1rem)/1.1 Georgia, serif;
+  letter-spacing: -0.045em;
+  overflow-wrap: anywhere;
 }
+
+.app-title span { color: var(--accent); }
 
 .header-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.35rem;
+  flex: none;
 }
 
 .icon-btn {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: 50%;
-  width: 2.35rem;
-  height: 2.35rem;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -262,16 +270,18 @@ input:focus-visible {
 
 .location-row {
   display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  margin-top: 0.5rem;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 .location-name {
   color: var(--text-muted);
   font-size: 0.95rem;
   letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
 }
+
+#change-location-btn, #forecast-refresh-btn { min-height: 44px; }
 
 .link-btn {
   background: none;
@@ -368,148 +378,233 @@ input:focus-visible {
 .verdict-text-verypoor    { color: var(--vpoor); }
 .verdict-text-unavailable { color: var(--text-dim); }
 
-/* ---------------------------------------------------------------------
-   Tonight hero — glowing score ring
---------------------------------------------------------------------- */
+/* Observatory × Nightscape dashboard */
 
-.tonight-hero {
+.night-dashboard {
+  display: grid;
+  gap: 0.6rem;
+  margin-inline: 0.75rem;
+  min-width: 0;
+}
+
+.night-picker {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin: 0.5rem 0 1.25rem;
+  gap: 0.4rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding: 0.2rem 0.2rem 0.45rem;
 }
 
-.score-ring {
-  /* --v comes from the verdict-ring-* class (verdict plumbing above); do not
-     set a default here — equal specificity + later source order would override it. */
-  position: relative;
-  width: 10rem;
-  height: 10rem;
-  border-radius: 50%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid color-mix(in srgb, var(--v) 85%, transparent);
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--v) 8%, transparent) 55%,
-    color-mix(in srgb, var(--v) 22%, transparent) 100%
-  );
-  box-shadow:
-    0 0 14px color-mix(in srgb, var(--v) 55%, transparent),
-    0 0 55px color-mix(in srgb, var(--v) 28%, transparent),
-    inset 0 0 26px color-mix(in srgb, var(--v) 30%, transparent);
-}
-
-/* Pulse only on GREAT nights — an expanding echo ring, transform + opacity only. */
-.verdict-ring-great::after {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--v) 65%, transparent);
-  animation: ring-pulse 2.6s ease-out infinite;
-  pointer-events: none;
-}
-
-@keyframes ring-pulse {
-  0%   { transform: scale(1);    opacity: 0.9; }
-  70%  { transform: scale(1.12); opacity: 0; }
-  100% { transform: scale(1.12); opacity: 0; }
-}
-
-.score-ring-value {
-  font-family: var(--font-display);
-  font-size: 3.6rem;
-  font-weight: 700;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
-  text-shadow: 0 0 22px color-mix(in srgb, var(--v) 60%, transparent);
-}
-
-.score-ring-verdict {
-  font-family: var(--font-display);
-  font-size: 0.9rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.24em;
-  margin-top: 0.3rem;
-  /* optical centering: letter-spacing adds a trailing gap */
-  margin-right: -0.24em;
-}
-
-.score-ring-caption {
-  margin-top: 0.7rem;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-dim);
-}
-
-/* ---------------------------------------------------------------------
-   Ephemeris banner — instrument readout
---------------------------------------------------------------------- */
-
-.ephemeris-banner {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  background: color-mix(in srgb, var(--bg-primary) 55%, transparent);
+.night-picker button {
+  flex: 0 0 auto;
+  display: grid;
+  place-content: center;
+  gap: 0.1rem;
+  min-width: 5.6rem;
+  min-height: 44px;
+  padding: 0.32rem 0.6rem;
   border: 1px solid var(--glass-border);
   border-radius: 0.6rem;
-  padding: 0.8rem 0.85rem;
-  margin-bottom: 0.75rem;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 0.78rem;
 }
 
-.ephemeris-banner::before {
+.night-picker button strong { color: var(--text-primary); }
+.night-picker button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg-card));
+  color: var(--accent);
+}
+
+.night-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  align-content: center;
+  gap: 0.35rem;
+  min-height: 9.6rem;
+  padding: 0.8rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 0.8rem;
+  background: var(--hero-base);
+}
+
+.hero-sky {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  overflow: hidden;
+  background: var(--hero-base);
+}
+
+.hero-photo-plane {
+  position: absolute;
+  bottom: -12px;
+  right: 0;
+  width: min(100%, 400px);
+  aspect-ratio: 1;
+  mask-image: linear-gradient(90deg, transparent, black 22%);
+}
+
+.hero-photo-plane img, .hero-photo-plane canvas, .hero-sky-cutout, .hero-neutral-sky {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.hero-photo-plane img { object-fit: contain; }
+.hero-sky-cutout {
+  clip-path: polygon(0 0,100% 0,100% 84.6%,97% 85.8%,96% 85.9%,95.7% 83.1%,94.7% 81.5%,93.1% 79.7%,91.8% 78.5%,90% 78.2%,88.5% 78.7%,86.7% 79.9%,85.4% 81.3%,84.7% 83%,84% 86.5%,82.5% 86.9%,80% 87.3%,76% 86.1%,73.5% 86.9%,69.5% 88.4%,65% 89%,60% 89.3%,55% 89.7%,50% 90.1%,46% 89.1%,41% 89.6%,36% 90.5%,31% 91%,26% 90.3%,21% 89.4%,16% 89%,11% 88.4%,5% 85.4%,0 83.5%);
+}
+
+.hero-neutral-sky { background: var(--hero-neutral); }
+.hero-sky[data-sky="forecast"] .hero-neutral-sky,
+.hero-sky[data-sky="unavailable"] canvas,
+.hero-sky.hero-photo-failed .hero-photo-plane { display: none; }
+body.red-mode .hero-photo-plane { filter: grayscale(1) sepia(1) saturate(5) hue-rotate(320deg) brightness(0.42); }
+
+.night-hero::after {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0.85rem;
-  right: 0.85rem;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--accent) 55%, transparent),
-    transparent
-  );
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--hero-scrim);
 }
 
-.ephemeris-item {
+.hero-topline { display: flex; gap: 0.65rem; align-items: center; }
+.hero-score {
+  flex: none;
+  display: grid;
+  place-content: center;
+  width: 4.25rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  background:
+    radial-gradient(closest-side, var(--hero-base) 81%, transparent 83%),
+    conic-gradient(var(--v, var(--text-muted)) 0 var(--score-fill, 0%), var(--glass-border) var(--score-fill, 0%) 100%);
+}
+
+.hero-score strong { font: 700 1.8rem/1 var(--font-display); }
+.hero-score small { color: var(--text-muted); font-size: 0.66rem; }
+.hero-topline h2 { font: 500 0.76rem/1.2 var(--font-body); }
+.hero-verdict { font: 700 1.5rem/1.1 var(--font-display); text-transform: uppercase; }
+.hero-confidence, .hero-sky-label { font-size: 0.74rem; color: var(--text-muted); }
+.hero-stats {
   display: flex;
-  gap: 0.6rem;
-  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.8rem;
+  margin-top: 0.42rem;
+  font-size: 0.78rem;
   color: var(--text-muted);
 }
+.hero-stats strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
 
-.ephemeris-icon {
-  width: 1.4rem;
-  text-align: center;
-  font-size: 1rem;
-  filter: saturate(0.7) brightness(0.9);
+.dashboard-surface {
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 0.7rem;
+  background: var(--bg-card);
 }
 
-.ephemeris-item > span:last-child {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  letter-spacing: 0.02em;
+.dashboard-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.5rem;
+}
+.dashboard-surface h3 { font: 600 0.88rem/1.35 var(--font-body); }
+.dashboard-heading > span, .window-panel p, .window-axis { font-size: 0.73rem; color: var(--text-muted); }
+.window-panel strong { font-size: 0.86rem; font-variant-numeric: tabular-nums; }
+.window-panel p { margin-top: 0.2rem; }
+
+.window-track {
+  position: relative;
+  height: 0.45rem;
+  margin: 0.5rem 0 0.2rem;
+  border-radius: 0.25rem;
+  overflow: hidden;
+  background: var(--bg-card-hover);
+}
+.window-track span {
+  position: absolute;
+  inset-block: 0;
+  left: var(--slot-start);
+  width: var(--slot-size);
+  background: var(--great);
+}
+.window-axis { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
+
+.night-dashboard .hourly-scroll { margin-block: 0.4rem 0.2rem; padding: 0.15rem 0.15rem 0.5rem; }
+.night-dashboard .dashboard-hour {
+  min-width: 6.25rem;
+  min-height: 44px;
+  max-width: 7.4rem;
+  padding: 0.4rem;
+  gap: 0.2rem;
   color: var(--text-primary);
+  font-size: 0.76rem;
+  opacity: 1;
+  text-align: center;
+}
+.night-dashboard .dashboard-hour :is(small, .hour-time) { color: var(--text-muted); }
+.night-dashboard .dashboard-hour[aria-pressed="true"] { border: 1px solid var(--accent); background: var(--bg-card-hover); }
+.night-dashboard .dashboard-hour .hour-best { color: var(--great); font-weight: 600; }
+.night-dashboard .hour-quality { font-size: 0.72rem; font-weight: 650; }
+
+.darkness-strip {
+  background: var(--darkness-bg);
+  color: var(--darkness-text);
+  border-radius: 0.32rem;
+  text-align: center;
+  padding: 0.2rem;
+  font-size: 0.73rem;
 }
 
-.optimal-window {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  border-radius: 0.6rem;
-  padding: 0.65rem 0.8rem;
-  margin-bottom: 1rem;
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-  color: var(--accent);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 12%, transparent);
+.night-details-grid { display: grid; gap: 0.6rem; }
+.cloud-layer-row {
+  display: grid;
+  grid-template-columns: 1.8rem minmax(0, 1fr) 2rem;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.36rem;
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+}
+.cloud-layer-row strong { text-align: right; }
+.cloud-layer-track { height: 0.36rem; border-radius: 0.25rem; overflow: hidden; background: var(--bg-card-hover); }
+.cloud-layer-track span { display: block; width: var(--cloud-layer-fill); height: 100%; background: var(--accent); }
+.dashboard-link { min-height: 44px; text-transform: none; letter-spacing: 0; }
+.conditions-list, .astronomy-grid { margin: 0.3rem 0 0; font-size: 0.77rem; }
+.conditions-list div { display: flex; justify-content: space-between; gap: 0.2rem 0.4rem; flex-wrap: wrap; margin-top: 0.2rem; }
+.conditions-list small { margin-left: 0.2rem; }
+.conditions-list dt, .astronomy-grid dt { color: var(--text-muted); }
+.conditions-list dd, .astronomy-grid dd { margin: 0; font-variant-numeric: tabular-nums; }
+.astronomy-grid { display: grid; gap: 0.4rem 0.6rem; }
+.night-averages summary { min-height: 44px; align-content: center; font-size: 0.76rem; color: var(--accent); }
+.night-averages .summary-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.night-averages .metric-card { min-width: 0; }
+
+@media (min-width: 420px) {
+  .night-details-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .astronomy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (min-width: 850px) {
+  .night-dashboard { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: start; }
+  .night-dashboard > :is(.night-picker, .night-hero, .window-panel, .astronomy-panel) { grid-column: 1 / -1; }
+  .night-details-grid { grid-template-columns: 1fr; }
+  .night-hero { min-height: 11.25rem; padding: 1rem 1.2rem; }
+  .hero-score { width: 5.25rem; }
+  .night-dashboard .dashboard-hour { flex-basis: 7rem; }
 }
 
 /* ---------------------------------------------------------------------
@@ -1187,11 +1282,6 @@ input:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   body::after {
     animation: none;
-  }
-
-  .verdict-ring-great::after {
-    animation: none;
-    opacity: 0.4;
   }
 
   .outlook-expanded:not([hidden]) {

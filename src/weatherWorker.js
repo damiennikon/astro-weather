@@ -9,7 +9,8 @@ self.onmessage = async (event) => {
 
   try {
     const cachedModelIds = new Set()
-    const { nights, meta } = await buildForecast(lat, lng, timezone, {
+    const { nights, meta, inProgressNight } = await buildForecast(lat, lng, timezone, {
+      includeInProgressNight: true,
       fetchImpl: async (url, options) => {
         const response = await fetch(url, { ...options, cache: 'no-store' })
         if (response.headers.has(CACHED_FORECAST_HEADER)) {
@@ -20,7 +21,7 @@ self.onmessage = async (event) => {
       onProgress: (step) => self.postMessage({ type: 'PROGRESS', step }),
     })
     const cached = meta.available.filter((model) => cachedModelIds.has(MODELS[model]))
-    self.postMessage({ type: 'FORECAST_READY', nights, meta: { ...meta, cached } })
+    self.postMessage({ type: 'FORECAST_READY', nights, inProgressNight, meta: { ...meta, cached } })
   } catch (err) {
     self.postMessage({
       type: 'FORECAST_ERROR',

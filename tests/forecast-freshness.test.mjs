@@ -2,7 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { registerHooks } from 'node:module'
 import { CACHED_FORECAST_HEADER, markCachedForecast } from '../src/forecastCache.js'
-import { buildFixture } from './helpers/openMeteoFixture.mjs'
+import { buildForecast } from '../src/forecast.js'
+import { buildFixture, okResponse } from './helpers/openMeteoFixture.mjs'
 
 // The notification module reads Vite build settings on import. These tests
 // exercise the real App forecast lifecycle without a notification service.
@@ -34,14 +35,17 @@ function setupApp(t) {
       if (!nodes.has(selector)) {
         const attrs = new Set(['hidden'])
         nodes.set(selector, {
+          dataset: {},
           setAttribute: (name) => attrs.add(name),
           removeAttribute: (name) => attrs.delete(name),
           toggleAttribute: (name, force) => force ? attrs.add(name) : attrs.delete(name),
           hasAttribute: (name) => attrs.has(name),
+          querySelector: () => null,
         })
       }
       return nodes.get(selector)
     },
+    querySelectorAll: () => [],
   }
   t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-08-18T17:30:00Z') })
   const workers = []
@@ -59,6 +63,7 @@ function setupApp(t) {
     globalThis.Worker = oldWorker
   })
   const app = new App()
+  t.after(() => clearTimeout(app.dashboardTimer))
   app.state.location = SITE
   app.renderTonight = () => root.querySelector('#tonight-panel').removeAttribute('hidden')
   app.renderOutlook = () => root.querySelector('#outlook-panel').removeAttribute('hidden')
@@ -74,6 +79,39 @@ test('all models failing on first load shows a retry and no forecast', (t) => {
   assert.equal(hidden('#forecast-status'), true)
   assert.equal(hidden('#tonight-panel'), true)
   assert.equal(hidden('#loading-overlay'), true)
+})
+
+test('the hybrid dashboard renders the active post-midnight forecast and switches to a future night', async (t) => {
+  const { app, workers, get, hidden } = setupApp(t)
+  app.renderTonight = App.prototype.renderTonight.bind(app)
+  app.renderOutlook = App.prototype.renderOutlook.bind(app)
+  const canvas = get('#hero-clouds')
+  canvas.width = canvas.height = 48
+  canvas.getContext = () => ({
+    clearRect() {},
+    createImageData: (width, height) => ({ data: new Uint8ClampedArray(width * height * 4) }),
+    putImageData() {},
+  })
+  const body = buildFixture({ timeZone: SITE.timezone, startYmd: { year: 2026, month: 8, day: 19 } })
+  const { nights, meta, inProgressNight } = await buildForecast(SITE.lat, SITE.lng, SITE.timezone, {
+    now: new Date(), fetchImpl: async () => okResponse(body), includeInProgressNight: true,
+  })
+  app.fetchForecast(SITE)
+  workers[0].send({ type: 'FORECAST_READY', nights, meta, inProgressNight })
+  assert.equal(hidden('#tonight-panel'), false)
+  assert.match(get('#night-picker').innerHTML, /In progress/)
+  assert.match(get('#hero-readout').innerHTML, /Partial night · earlier data unavailable/)
+  assert.match(get('#hero-sky-label').textContent, /01:00 site forecast · 1% cloud/)
+  assert.match(get('#selected-cloud-hour').textContent, /01:00 · 1% total/)
+  assert.match(get('#optimal-window-callout').innerHTML, /Whole-night window unavailable/)
+
+  const future = nights[0] // The upcoming evening still counts as future after midnight.
+  app.state.selectedNightDate = future.date
+  app.renderDashboard(new Date(), true)
+  assert.match(get('#hero-sky-label').textContent, /night average/)
+  assert.match(get('#hero-readout').innerHTML, /avg cloud/)
+  assert.match(get('#tonight-hourly').innerHTML, /data-night-index="1"/)
+  assert.match(get('#hour-cloud-layers').innerHTML, /Low.*Mid.*High/s)
 })
 
 test('same-site refresh failure keeps the previous forecast and its original site-local fetch time', (t) => {

@@ -191,7 +191,8 @@ export async function buildForecast(lat, lng, timezone, options = {}) {
   onProgress?.('Blending models & scoring...')
   const coverageEnd = minCoverageEnd(fetched.available.map((id) => fetched.responses[id]))
 
-  const today = zonedParts(options.now ?? new Date(), tz)
+  const now = options.now ?? new Date()
+  const today = zonedParts(now, tz)
   const maxNights = options.maxNights ?? DEFAULT_MAX_NIGHTS
   const candidates = []
   for (let n = 0; n < maxNights; n++) {
@@ -206,8 +207,25 @@ export async function buildForecast(lat, lng, timezone, options = {}) {
     : candidates
   if (nights.length === 0 && candidates.length > 0) nights.push(candidates[0])
 
+  // The civil-date list stays unchanged for existing callers. The browser can
+  // also show an observing night still in progress after midnight, from the
+  // same model responses and without fetching an extra forecast.
+  let inProgressNight = null
+  if (options.includeInProgressNight) {
+    const yesterday = addDays(today, -1)
+    const { displayStart, displayEnd } = nightDisplayWindow(yesterday, tz)
+    if (displayStart <= now && now < displayEnd) {
+      const night = buildNight(yesterday, tz, observer, models)
+      const hasFullDarkHourCoverage = night.hours.filter((hour) => hour.isDark).every((hour) =>
+        fetched.available.every((id) => models[id].index.has(hourKey(hour.time))),
+      )
+      inProgressNight = { night, wholeNightSummaryAvailable: hasFullDarkHourCoverage }
+    }
+  }
+
   return {
     nights,
+    ...(options.includeInProgressNight ? { inProgressNight } : {}),
     meta: {
       timezone: tz,
       available: fetched.available,
@@ -301,9 +319,14 @@ function average(values) {
 
 // `ymd` is a civil date in the site's timezone, so the night rolls over at the
 // site's midnight rather than the viewer's.
-export function buildNight(ymd, timeZone, observer, models) {
+function nightDisplayWindow(ymd, timeZone) {
   const displayStart = zonedToUtc(ymd.year, ymd.month, ymd.day, 17, 0, timeZone)
   const displayEnd = new Date(displayStart.getTime() + DISPLAY_HOURS * 3600 * 1000)
+  return { displayStart, displayEnd }
+}
+
+export function buildNight(ymd, timeZone, observer, models) {
+  const { displayStart, displayEnd } = nightDisplayWindow(ymd, timeZone)
   const noon = zonedToUtc(ymd.year, ymd.month, ymd.day, 12, 0, timeZone)
   const midnight = zonedToUtc(ymd.year, ymd.month, ymd.day + 1, 0, 0, timeZone)
 
