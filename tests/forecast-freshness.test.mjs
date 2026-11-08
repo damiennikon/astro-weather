@@ -66,7 +66,6 @@ function setupApp(t) {
   t.after(() => clearTimeout(app.dashboardTimer))
   app.state.location = SITE
   app.renderTonight = () => root.querySelector('#tonight-panel').removeAttribute('hidden')
-  app.renderOutlook = () => root.querySelector('#outlook-panel').removeAttribute('hidden')
   return { app, workers, get: root.querySelector, hidden: (selector) => root.querySelector(selector).hasAttribute('hidden') }
 }
 
@@ -81,10 +80,28 @@ test('all models failing on first load shows a retry and no forecast', (t) => {
   assert.equal(hidden('#loading-overlay'), true)
 })
 
+test('the top night picker shows comparable scores and keeps unavailable scores distinct from zero', (t) => {
+  const { app, get } = setupApp(t)
+  app.renderShell()
+  assert.match(app.root.innerHTML, /id="night-picker"/)
+  assert.match(app.root.innerHTML, /id="satellite-panel"/)
+  assert.doesNotMatch(app.root.innerHTML, /id="outlook-panel"/)
+
+  app.state.nights = [
+    { date: '2026-08-18', wholeNightSummaryAvailable: false, nightAvg: { score: 83 } },
+    { date: '2026-08-19', nightAvg: { score: 68.2 } },
+    { date: '2026-08-20', nightAvg: { score: 0 } },
+  ]
+  app.renderNightPicker(1, new Date(), SITE.timezone)
+  const markup = get('#night-picker').innerHTML
+  assert.match(markup, /data-select-night="2026-08-18" aria-pressed="false" aria-label="[^"]*score unavailable">[\s\S]*?verdict-text-unavailable" aria-hidden="true">—/)
+  assert.match(markup, /data-select-night="2026-08-19" aria-pressed="true" aria-label="Tonight,[^"]*suitability 68 out of 100, Good">[\s\S]*?verdict-text-good" aria-hidden="true">68/)
+  assert.match(markup, /data-select-night="2026-08-20" aria-pressed="false" aria-label="[^"]*suitability 0 out of 100, Very Poor">[\s\S]*?verdict-text-verypoor" aria-hidden="true">0/)
+})
+
 test('the hybrid dashboard renders the active post-midnight forecast and switches to a future night', async (t) => {
   const { app, workers, get, hidden } = setupApp(t)
   app.renderTonight = App.prototype.renderTonight.bind(app)
-  app.renderOutlook = App.prototype.renderOutlook.bind(app)
   const canvas = get('#hero-clouds')
   canvas.width = canvas.height = 48
   canvas.getContext = () => ({
