@@ -36,11 +36,13 @@ function setupApp(t) {
         const attrs = new Set(['hidden'])
         nodes.set(selector, {
           dataset: {},
+          style: {},
           setAttribute: (name) => attrs.add(name),
           removeAttribute: (name) => attrs.delete(name),
           toggleAttribute: (name, force) => force ? attrs.add(name) : attrs.delete(name),
           hasAttribute: (name) => attrs.has(name),
-          querySelector: () => null,
+          addEventListener() {},
+          querySelector: (child) => root.querySelector(child),
         })
       }
       return nodes.get(selector)
@@ -80,7 +82,7 @@ test('all models failing on first load shows a retry and no forecast', (t) => {
   assert.equal(hidden('#loading-overlay'), true)
 })
 
-test('the top night picker shows comparable scores and keeps unavailable scores distinct from zero', (t) => {
+test('the night picker shows comparable scores and keeps unavailable scores distinct from zero', (t) => {
   const { app, get } = setupApp(t)
   app.renderShell()
   assert.match(app.root.innerHTML, /id="night-picker"/)
@@ -117,18 +119,27 @@ test('the hybrid dashboard renders the active post-midnight forecast and switche
   workers[0].send({ type: 'FORECAST_READY', nights, meta, inProgressNight })
   assert.equal(hidden('#tonight-panel'), false)
   assert.match(get('#night-picker').innerHTML, /In progress/)
-  assert.match(get('#hero-readout').innerHTML, /Partial night · earlier data unavailable/)
-  assert.match(get('#hero-sky-label').textContent, /01:00 site forecast · 1% cloud/)
+  assert.match(get('#hero-readout').innerHTML, /Earlier forecast hours unavailable/)
+  assert.equal(get('#hero-sky-label').textContent, 'Sky illustration')
+  assert.equal(get('#tonight-selected-cloud').textContent, '1%')
   assert.match(get('#selected-cloud-hour').textContent, /01:00 · 1% total/)
   assert.match(get('#optimal-window-callout').innerHTML, /Whole-night window unavailable/)
 
   const future = nights[0] // The upcoming evening still counts as future after midnight.
   app.state.selectedNightDate = future.date
   app.renderDashboard(new Date(), true)
-  assert.match(get('#hero-sky-label').textContent, /upcoming night average/)
-  assert.match(get('#hero-readout').innerHTML, /avg cloud/)
+  const firstDark = future.hours.find(({ isDark }) => isDark)
+  assert.equal(get('#tonight-selected-cloud').textContent, `${Math.round(firstDark.cloud)}%`)
+  assert.equal(get('#tonight-selected-temp').textContent, `${Math.round(firstDark.temp)}°C`)
+  assert.match(get('#hero-readout').innerHTML, /Average cloud cover/)
   assert.match(get('#tonight-hourly').innerHTML, /data-night-index="1"/)
   assert.match(get('#hour-cloud-layers').innerHTML, /Low.*Mid.*High/s)
+
+  const last = future.hours.at(-1)
+  app.cloudChart.selectHour(future.hours.length - 1, true)
+  app.renderDashboard(new Date(), true)
+  assert.equal(app.selectedForecastHour, +last.time)
+  assert.equal(get('#tonight-selected-cloud').textContent, `${Math.round(last.cloud)}%`)
 })
 
 test('same-site refresh failure keeps the previous forecast and its original site-local fetch time', (t) => {

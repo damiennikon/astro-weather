@@ -37,8 +37,6 @@
   --star-dim:    rgba(180, 200, 230, 0.35);
   --hero-base: #111725;
   --hero-neutral: linear-gradient(145deg, #172033, #27333f);
-  --hero-scrim: linear-gradient(90deg, #080c15 0%, #080c15dd 28%, #080c1552 60%, transparent 92%),
-                linear-gradient(0deg, #080c15cc, transparent 47%);
   --darkness-bg: #312545;
   --darkness-text: #e4d6fd;
 
@@ -78,8 +76,6 @@
   --star-dim:    rgba(160, 40, 10, 0.22);
   --hero-base: #190403;
   --hero-neutral: linear-gradient(145deg, #210806, #33100b);
-  --hero-scrim: linear-gradient(90deg, #120200, #120200dd 28%, #12020052 70%, transparent),
-                linear-gradient(0deg, #120200d9, transparent 47%);
   --darkness-bg: #360f0b;
   --darkness-text: #e6a398;
 }
@@ -327,30 +323,6 @@ input:focus-visible {
   background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 35%, transparent), transparent);
 }
 
-/* ---------------------------------------------------------------------
-   Verdict colour plumbing — every verdict-coloured element reads --v,
-   so glows, borders, and badges stay consistent and Red Mode–safe.
---------------------------------------------------------------------- */
-
-.verdict-ring-great {
-  --v: var(--great);
-}
-.verdict-ring-good {
-  --v: var(--good);
-}
-.verdict-ring-fair {
-  --v: var(--fair);
-}
-.verdict-ring-poor {
-  --v: var(--poor);
-}
-.verdict-ring-verypoor {
-  --v: var(--vpoor);
-}
-.verdict-ring-unavailable {
-  --v: var(--text-dim);
-}
-
 .verdict-text-great       { color: var(--great); }
 .verdict-text-good        { color: var(--good); }
 .verdict-text-fair        { color: var(--fair); }
@@ -420,36 +392,37 @@ input:focus-visible {
 
 .red-mode .night-picker-score { color: var(--text-primary); }
 
+.night-dashboard { color: var(--text-primary); }
+
+.red-mode .night-dashboard {
+  --text-primary: #f38469;
+  --text-muted: #dc8b77;
+  --accent: #ee7556;
+}
+
 .night-hero {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
   display: grid;
-  align-content: center;
-  gap: 0.35rem;
-  min-height: 9.6rem;
-  padding: 0.8rem;
+  grid-template-columns: minmax(0, 1fr) clamp(5.75rem, 26vw, 8.5rem);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem;
   border: 1px solid var(--glass-border);
   border-radius: 0.8rem;
-  background: var(--hero-base);
+  background: var(--bg-card);
 }
 
+.hero-illustration { margin: 0; text-align: center; }
+.hero-sky-label { margin-top: 0.35rem; font-size: 0.8rem; color: var(--text-muted); }
 .hero-sky {
-  position: absolute;
-  z-index: -2;
-  inset: 0;
+  position: relative;
+  aspect-ratio: 1;
   overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: 0.7rem;
   background: var(--hero-base);
 }
 
-.hero-photo-plane {
-  position: absolute;
-  bottom: -12px;
-  right: 0;
-  width: min(100%, 400px);
-  aspect-ratio: 1;
-  mask-image: linear-gradient(90deg, transparent, black 22%);
-}
+.hero-photo-plane { position: absolute; inset: 0; }
 
 .hero-photo-plane img, .hero-photo-plane canvas, .hero-sky-cutout, .hero-neutral-sky {
   position: absolute;
@@ -470,44 +443,179 @@ input:focus-visible {
 .hero-sky.hero-photo-failed .hero-photo-plane { display: none; }
 body.red-mode .hero-photo-plane { filter: grayscale(1) sepia(1) saturate(5) hue-rotate(320deg) brightness(0.42); }
 
-.night-hero::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: var(--hero-scrim);
+.hero-readout h2 {
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+  font: 600 clamp(2rem, 7vw, 2.65rem)/1 var(--font-display);
 }
 
-.hero-topline { display: flex; gap: 0.65rem; align-items: center; }
-.hero-score {
-  flex: none;
-  display: grid;
-  place-content: center;
-  width: 4.25rem;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  background:
-    radial-gradient(closest-side, var(--hero-base) 81%, transparent 83%),
-    conic-gradient(var(--v, var(--text-muted)) 0 var(--score-fill, 0%), var(--glass-border) var(--score-fill, 0%) 100%);
-}
-
-.hero-score strong { font: 700 1.8rem/1 var(--font-display); }
-.hero-score small { color: var(--text-muted); font-size: 0.66rem; }
-.hero-topline h2 { font: 500 0.76rem/1.2 var(--font-body); }
-.hero-verdict { font: 700 1.5rem/1.1 var(--font-display); text-transform: uppercase; }
-.hero-confidence, .hero-sky-label { font-size: 0.74rem; color: var(--text-muted); }
-.hero-stats {
+.hero-cloud-average {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.2rem 0.8rem;
-  margin-top: 0.42rem;
-  font-size: 0.78rem;
+  align-items: center;
+  gap: 0.2rem 0.75rem;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+.hero-cloud-average strong {
+  color: var(--accent);
+  font: 600 clamp(2.5rem, 10vw, 3.75rem)/1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+.hero-cloud-average small { display: block; color: var(--text-muted); font-size: 0.8rem; }
+
+.tonight-chart {
+  padding: 0.9rem clamp(0.65rem, 3vw, 1rem);
+  border: 1px solid var(--glass-border);
+  border-radius: 0.8rem;
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.tonight-chart-footer, .tonight-chart-note { color: var(--text-muted); font-size: 0.8rem; }
+
+.tonight-chart-heading,
+.tonight-chart-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.3rem 0.75rem;
+}
+
+.tonight-chart-heading h3 { margin: 0; color: var(--text-primary); font-size: 1rem; }
+.tonight-chart-heading > span { color: var(--text-muted); font-size: 0.875rem; }
+
+.tonight-readout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0.65rem 0 1rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.tonight-readout div { display: grid; gap: 0.15rem; }
+.tonight-readout div + div { padding-left: 0.75rem; border-left: 1px solid var(--glass-border); }
+.tonight-readout strong {
+  color: var(--text-primary);
+  font: 600 2rem / 1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+.tonight-readout span { color: var(--text-muted); font-size: 0.875rem; }
+
+.tonight-chart-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.5rem;
+  row-gap: 0.45rem;
+  padding-right: 0.25rem;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
   color: var(--text-muted);
 }
-.hero-stats strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+.tonight-chart-y {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: end;
+  margin-block: -0.45rem;
+  line-height: 0.9rem;
+}
+
+.tonight-chart-plot {
+  position: relative;
+  height: clamp(7.5rem, 28vw, 10.5rem);
+  cursor: ew-resize;
+  touch-action: pan-y;
+  user-select: none;
+}
+.tonight-chart-plot svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.tonight-chart-dark { fill: color-mix(in srgb, var(--accent) 11%, var(--bg-primary)); }
+.tonight-chart-gridline { stroke: var(--glass-border); }
+.tonight-chart-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+
+.tonight-chart-point,
+.tonight-chart-dot,
+.tonight-chart-cursor {
+  position: absolute;
+  pointer-events: none;
+}
+
+.tonight-chart-point,
+.tonight-chart-dot { border-radius: 50%; transform: translate(-50%, -50%); }
+.tonight-chart-point { width: 4px; height: 4px; background: var(--accent); }
+.tonight-chart-dot { width: 11px; height: 11px; border: 2px solid var(--accent); background: var(--bg-primary); }
+.tonight-chart-cursor { inset-block: 0; border-left: 1px dashed var(--text-muted); }
+
+.tonight-chart-plot input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tonight-chart-plot:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.tonight-chart-x { grid-column: 2; position: relative; height: 1rem; white-space: nowrap; }
+.tonight-chart-x span { position: absolute; left: var(--time-position); transform: translateX(-50%); }
+.tonight-chart-x span:first-child { transform: none; }
+.tonight-chart-x span:last-child:not(:first-child) { transform: translateX(-100%); }
+.tonight-chart-footer { margin-top: 0.45rem; }
+.tonight-dark-key { display: inline-flex; gap: 0.35rem; align-items: center; }
+.tonight-dark-key::before {
+  content: '';
+  width: 0.75rem;
+  height: 0.6rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 11%, var(--bg-primary));
+}
+
+.tonight-chart-note { margin-top: 0.45rem; }
+.tonight-details { border-bottom: 1px solid var(--glass-border); }
+.tonight-details:last-child { border-bottom: 0; }
+.tonight-details summary {
+  min-height: 44px;
+  padding: 0.8rem 0.15rem;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.tonight-details summary::marker { color: var(--accent); }
+
+
+.tonight-hour-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.tonight-hour-table :is(th, td) {
+  border-top: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  text-align: right;
+}
+.tonight-hour-table th { font-weight: 400; color: var(--text-muted); }
+.tonight-hour-table th:first-child { text-align: left; }
+.tonight-hour-table thead th { padding-block: 0.35rem; }
+.tonight-hour-button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: inherit;
+  text-align: left;
+}
+
+
+.upcoming-nights .night-picker { padding-top: 0.5rem; padding-bottom: 0.25rem; }
+.astro-details > summary { min-height: 44px; align-content: center; cursor: pointer; }
+.astro-details > summary::marker { color: var(--accent); }
+.astro-details > :not(summary) { margin-bottom: 0.65rem; }
+.astro-details > :last-child { margin-bottom: 0; }
+.night-score { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.3rem; }
+.night-score span { color: var(--text-muted); font-size: 0.875rem; }
 
 .dashboard-surface {
   min-width: 0;
@@ -546,32 +654,6 @@ body.red-mode .hero-photo-plane { filter: grayscale(1) sepia(1) saturate(5) hue-
 }
 .window-axis { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
 
-.night-dashboard .hourly-scroll { margin-block: 0.4rem 0.2rem; padding: 0.15rem 0.15rem 0.5rem; }
-.night-dashboard .dashboard-hour {
-  min-width: 6.25rem;
-  min-height: 44px;
-  max-width: 7.4rem;
-  padding: 0.4rem;
-  gap: 0.2rem;
-  color: var(--text-primary);
-  font-size: 0.76rem;
-  opacity: 1;
-  text-align: center;
-}
-.night-dashboard .dashboard-hour :is(small, .hour-time) { color: var(--text-muted); }
-.night-dashboard .dashboard-hour[aria-pressed="true"] { border: 1px solid var(--accent); background: var(--bg-card-hover); }
-.night-dashboard .dashboard-hour .hour-best { color: var(--great); font-weight: 600; }
-.night-dashboard .hour-quality { font-size: 0.72rem; font-weight: 650; }
-
-.darkness-strip {
-  background: var(--darkness-bg);
-  color: var(--darkness-text);
-  border-radius: 0.32rem;
-  text-align: center;
-  padding: 0.2rem;
-  font-size: 0.73rem;
-}
-
 .night-details-grid { display: grid; gap: 0.6rem; }
 .cloud-layer-row {
   display: grid;
@@ -601,14 +683,6 @@ body.red-mode .hero-photo-plane { filter: grayscale(1) sepia(1) saturate(5) hue-
   .astronomy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-@media (min-width: 850px) {
-  .night-dashboard { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: start; }
-  .night-dashboard > :is(.night-picker, .night-hero, .window-panel, .astronomy-panel) { grid-column: 1 / -1; }
-  .night-details-grid { grid-template-columns: 1fr; }
-  .night-hero { min-height: 11.25rem; padding: 1rem 1.2rem; }
-  .hero-score { width: 5.25rem; }
-  .night-dashboard .dashboard-hour { flex-basis: 7rem; }
-}
 
 /* ---------------------------------------------------------------------
    Summary metrics panel
@@ -678,79 +752,6 @@ body.red-mode .hero-photo-plane { filter: grayscale(1) sepia(1) saturate(5) hue-
   .summary-metrics {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-}
-
-/* ---------------------------------------------------------------------
-   Hourly scroll + cards
---------------------------------------------------------------------- */
-
-.hourly-scroll {
-  display: flex;
-  overflow-x: auto;
-  gap: 0.5rem;
-  padding-bottom: 0.6rem;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
-}
-
-.hour-card {
-  flex: 0 0 auto;
-  background: color-mix(in srgb, var(--bg-card) 65%, transparent);
-  border: 1px solid var(--glass-border);
-  border-radius: 0.6rem;
-  padding: 0.65rem 0.5rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-  min-width: 4.6rem;
-  color: var(--text-primary);
-  box-shadow: inset 0 1px 0 var(--glass-highlight);
-  transition: transform 0.15s ease, border-color 0.2s ease, background-color 0.2s ease;
-}
-
-.hour-card.dark:hover {
-  background: color-mix(in srgb, var(--bg-card-hover) 80%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  transform: translateY(-2px);
-}
-
-/* Daylight cards read as clearly "outside the session" — flatter, dashed,
-   desaturated, no glass highlight. */
-.hour-card.daylight {
-  background: color-mix(in srgb, var(--bg-card) 30%, transparent);
-  border: 1px dashed var(--border);
-  box-shadow: none;
-  color: var(--text-dim);
-  opacity: 0.65;
-}
-
-.hour-time {
-  font-size: 0.72rem;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
-}
-
-.hour-card.daylight .hour-time {
-  color: var(--text-dim);
-}
-
-.hour-divider {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  font-family: var(--font-display);
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--accent-dim);
-  padding: 0 0.3rem;
-  border-left: 1px dashed color-mix(in srgb, var(--accent) 35%, transparent);
-  border-right: 1px dashed color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 /* ---------------------------------------------------------------------
@@ -1155,14 +1156,12 @@ body.red-mode .hero-photo-plane { filter: grayscale(1) sepia(1) saturate(5) hue-
   }
 
   .icon-btn,
-  .hour-card,
   .primary-btn,
   .secondary-btn {
     transition: none;
   }
 
-  .icon-btn:hover,
-  .hour-card.dark:hover {
+  .icon-btn:hover {
     transform: none;
   }
 }
