@@ -133,6 +133,11 @@ test('the hybrid dashboard renders the active post-midnight forecast and switche
   assert.equal(get('#tonight-selected-temp').textContent, `${Math.round(firstDark.temp)}°C`)
   assert.match(get('#hero-readout').innerHTML, /Average cloud cover/)
   assert.match(get('#tonight-hourly').innerHTML, /data-night-index="1"/)
+  const hourlyAxis = get('#tonight-hourly').innerHTML.match(/class="tonight-chart-x[^"]*" aria-hidden="true">([\s\S]*?)<\/div>/)[1]
+  assert.equal([...hourlyAxis.matchAll(/class="tonight-chart-tick"/g)].length, future.hours.length)
+  assert.match(hourlyAxis, /--time-position: 0%[^>]*>\s*<span>5<\/span> <span>pm<\/span>/)
+  assert.match(hourlyAxis, /<span>12<\/span> <span>am<\/span>/)
+  assert.match(hourlyAxis, /--time-position: 100%[^>]*>\s*<span>6<\/span> <span>am<\/span>/)
   assert.match(get('#hour-cloud-layers').innerHTML, /Low.*Mid.*High/s)
 
   const last = future.hours.at(-1)

@@ -9,12 +9,17 @@ export function renderCloudChart(container, night, nightIndex, timeZone, onSelec
   const formatter = new Intl.DateTimeFormat('en-AU', {
     timeZone: safeTimeZone(timeZone), hour: 'numeric', minute: '2-digit', hour12: true,
   })
-  const formatTime = (date) => {
-    const short = formatter.format(date).replace(':00', '')
+  const timeParts = (date) => {
+    const clock = formatter.format(date).replace(':00', '')
     const siteTime = formatDashboardHour(night, date, timeZone)
     const zoneSuffix = siteTime.indexOf(' ')
-    return zoneSuffix < 0 ? short : short + siteTime.slice(zoneSuffix)
+    return { clock, zone: zoneSuffix < 0 ? '' : siteTime.slice(zoneSuffix + 1) }
   }
+  const formatTime = (date) => {
+    const { clock, zone } = timeParts(date)
+    return zone ? `${clock} ${zone}` : clock
+  }
+  const hourlyTimes = hours.map(({ time }) => timeParts(time))
   const darkness = astroStart && astroEnd ? `${formatTime(astroStart)}–${formatTime(astroEnd)}` : ''
   const hasCloud = hours.some((hour) => Number.isFinite(hour.cloud))
 
@@ -28,7 +33,7 @@ export function renderCloudChart(container, night, nightIndex, timeZone, onSelec
         <div><strong id="tonight-selected-cloud"></strong><span>Cloud cover</span></div>
         <div><strong id="tonight-selected-temp"></strong><span>Temperature</span></div>
       </div>
-      ${renderPlot(hours, formatTime, astroStart, astroEnd)}
+      ${renderPlot(hours, hourlyTimes, astroStart, astroEnd)}
       <div class="tonight-chart-footer">
         <span class="tonight-dark-key">Astro dark</span>
         <span>${darkness || 'Unavailable'}</span>
@@ -106,18 +111,20 @@ function hourPosition(index, count) {
   return count > 1 ? 100 * index / (count - 1) : 0
 }
 
-function renderPlot(hours, formatTime, astroStart, astroEnd) {
+function renderPlot(hours, hourlyTimes, astroStart, astroEnd) {
   const first = hours[0]?.time
   const last = hours.at(-1)?.time
   const positionOf = (date) => Math.max(0, Math.min(100, 100 * (date - first) / (last - first)))
   const start = astroStart && last > first ? positionOf(astroStart) : 0
   const end = astroEnd && last > first ? positionOf(astroEnd) : 0
   const ticks = [100, 75, 50, 25, 0]
-  const labelCount = Math.min(5, hours.length)
-  const labels = Array.from({ length: labelCount }, (_, i) => {
-    const index = labelCount > 1 ? Math.round(i * (hours.length - 1) / (labelCount - 1)) : 0
-    return `<span style="--time-position: ${hourPosition(index, hours.length)}%">${formatTime(hours[index].time)}</span>`
+  const labels = hourlyTimes.map(({ clock, zone }, index) => {
+    const [hour, period] = clock.split(/\s+/)
+    return `<span class="tonight-chart-tick" style="--time-position: ${hourPosition(index, hours.length)}%">
+      <span${hour.includes(':') ? ' class="tonight-chart-minute"' : ''}>${hour}</span> <span>${period}</span>${zone ? ` <span class="tonight-chart-zone">${zone}</span>` : ''}
+    </span>`
   })
+  const hasMinutes = hourlyTimes.some(({ clock }) => clock.includes(':'))
 
   let path = ''
   let hasPrevious = false
@@ -148,6 +155,6 @@ function renderPlot(hours, formatTime, astroStart, astroEnd) {
         <span class="tonight-chart-dot" aria-hidden="true" hidden></span>
         <input type="range" min="0" max="${Math.max(0, hours.length - 1)}" value="0" step="1" aria-label="Select forecast hour" ${hours.length < 2 ? 'disabled' : ''}>
       </div>
-      <div class="tonight-chart-x" aria-hidden="true">${labels.join('')}</div>
+      <div class="tonight-chart-x${hasMinutes ? ' tonight-chart-x-minutes' : ''}" aria-hidden="true">${labels.join('')}</div>
     </div>`
 }
