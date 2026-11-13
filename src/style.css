@@ -275,11 +275,13 @@ input:focus-visible {
 
 .nearby-lightning {
   position: absolute;
-  display: inline-flex;
-  align-items: center;
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
   gap: 0.4rem;
   color: var(--text-muted);
   font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 .nearby-lightning.lightning-message { position: static; }
