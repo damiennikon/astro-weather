@@ -8,3 +8,8 @@ id = "44e50dd443ce47c485a417853e7f0144"
 
 [vars]
 ALLOWED_ORIGIN = "https://damiennikon.github.io"
+
+[[ratelimits]]
+name = "LIGHTNING_RATE_LIMITER"
+namespace_id = "6841"
+simple = { limit = 12, period = 60 }

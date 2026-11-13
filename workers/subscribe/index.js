@@ -1,3 +1,5 @@
+import { lookupLightning } from './lightning.js'
+
 const SUBSCRIPTION_TTL = 60 * 60 * 24 * 365
 const MAX_LOCATION_NAME_LENGTH = 120
 const MAX_TIMEZONE_LENGTH = 100
@@ -5,7 +7,7 @@ const MAX_TIMEZONE_LENGTH = 100
 function corsHeaders(env) {
   return {
     'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN,
-    'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     Vary: 'Origin',
   }
@@ -109,6 +111,7 @@ export async function subscriptionKey(endpoint) {
 export default {
   async fetch(request, env) {
     const headers = corsHeaders(env)
+    const url = new URL(request.url)
 
     if (request.method === 'OPTIONS') {
       return isAllowedOrigin(request, env)
@@ -116,14 +119,18 @@ export default {
         : new Response('Forbidden', { status: 403 })
     }
 
-    if ((request.method === 'POST' && new URL(request.url).pathname === '/subscribe') ||
-        (request.method === 'DELETE' && new URL(request.url).pathname === '/unsubscribe')) {
+    if ((request.method === 'POST' && url.pathname === '/subscribe') ||
+        (request.method === 'DELETE' && url.pathname === '/unsubscribe')) {
       if (!isAllowedOrigin(request, env)) return new Response('Forbidden', { status: 403 })
     }
 
-    try {
-      const url = new URL(request.url)
+    if (request.method === 'GET' && url.pathname === '/lightning') {
+      if (!isAllowedOrigin(request, env)) return new Response('Forbidden', { status: 403 })
+      const { body, status } = await lookupLightning(request, url, env)
+      return jsonResponse(body, status, { ...headers, 'Cache-Control': 'no-store' })
+    }
 
+    try {
       if (request.method === 'POST' && url.pathname === '/subscribe') {
         const parsed = await readJson(request)
         if (!parsed.ok) return jsonResponse({ error: parsed.error }, 400, headers)

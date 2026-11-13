@@ -10,6 +10,7 @@ import {
 } from './dashboardForecast.js'
 import { paintHeroClouds } from './heroSky.js'
 import { renderCloudChart } from './cloudChart.js'
+import { createLightningIndicator } from './lightning.js'
 
 const STORAGE_KEY = 'astro-location'
 const RED_MODE_KEY = 'astro-red-mode'
@@ -61,6 +62,10 @@ export class App {
 
   init() {
     this.renderShell()
+    this.lightning = createLightningIndicator(
+      this.root.querySelector('#nearby-lightning'),
+      this.root.querySelector('#lightning-source'),
+    )
     this.bindShellEvents()
     this.applyStoredRedMode()
     this.initBellState()
@@ -92,6 +97,7 @@ export class App {
         </div>
         <div class="location-row">
           <span id="location-name" class="location-name">Loading…</span>
+          <span id="nearby-lightning" class="nearby-lightning" role="status"></span>
           <button id="change-location-btn" class="link-btn">Change</button>
         </div>
       </header>
@@ -162,6 +168,9 @@ export class App {
           <button id="satellite-toggle" class="secondary-btn">Show Satellite View</button>
           <div id="satellite-container" class="satellite-container" hidden></div>
         </section>
+        <p id="lightning-source" class="lightning-source" hidden>
+          Lightning data <a href="https://www.xweather.com/">powered by Vaisala Xweather</a>
+        </p>
       </main>
 
       <div id="loading-overlay" class="loading-overlay" hidden>
@@ -254,7 +263,9 @@ export class App {
     heroPhoto.addEventListener('error', markPhotoUnavailable)
     if (heroPhoto.complete && !heroPhoto.naturalWidth) markPhotoUnavailable()
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && this.state.nights) this.renderDashboard()
+      if (document.visibilityState !== 'visible') return
+      if (this.state.nights) this.renderDashboard()
+      if (this.state.location) void this.lightning?.check(this.state.location)
     })
     this.root.querySelector('#confidence-modal').addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
@@ -604,6 +615,7 @@ export class App {
   // ---------------------------------------------------------------------
 
   fetchForecast(location) {
+    void this.lightning?.check(location)
     const previous = this.state.forecastLocation
     if (!previous || previous.lat !== location.lat || previous.lng !== location.lng ||
         previous.timezone !== location.timezone) {
