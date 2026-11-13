@@ -103,10 +103,6 @@ export class App {
       </header>
 
       <main id="main-content">
-        <div id="forecast-status" class="forecast-status" hidden>
-          <p id="forecast-freshness" role="status"></p>
-          <button id="forecast-refresh-btn" class="link-btn">Refresh forecast</button>
-        </div>
         <p id="forecast-refresh-warning" class="data-notice" role="status" hidden></p>
         <div id="data-notice" class="data-notice" hidden></div>
 
@@ -163,6 +159,11 @@ export class App {
             </section>
           </details>
         </section>
+
+        <div id="forecast-status" class="forecast-status" hidden>
+          <p id="forecast-freshness" role="status"></p>
+          <button id="forecast-refresh-btn" class="link-btn">Refresh forecast</button>
+        </div>
 
         <section id="satellite-panel" class="panel">
           <button id="satellite-toggle" class="secondary-btn">Show Satellite View</button>

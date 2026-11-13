@@ -222,6 +222,10 @@ input:focus-visible {
   backdrop-filter: blur(14px);
 }
 
+#main-content {
+  padding-top: 0.75rem;
+}
+
 .header-top {
   display: flex;
   align-items: center;
@@ -1237,7 +1241,7 @@ body.red-mode .hero-photo-plane { filter: grayscale(1) sepia(1) saturate(5) hue-
   align-items: baseline;
   justify-content: space-between;
   gap: 0.4rem 1rem;
-  margin: 0 0.75rem 0.75rem;
+  margin: 0.6rem 0.75rem 0;
   color: var(--text-muted);
   font-size: 0.85rem;
 }
