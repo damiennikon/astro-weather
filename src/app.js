@@ -97,7 +97,6 @@ export class App {
         </div>
         <div class="location-row">
           <span id="location-name" class="location-name">Loading…</span>
-          <span id="nearby-lightning" class="nearby-lightning" role="status"></span>
           <button id="change-location-btn" class="link-btn">Change</button>
         </div>
       </header>
@@ -127,6 +126,7 @@ export class App {
               </div>
               <figcaption id="hero-sky-label" class="hero-sky-label">Sky illustration</figcaption>
             </figure>
+            <div id="nearby-lightning" class="nearby-lightning" role="status"></div>
           </section>
           <div id="tonight-hourly"></div>
           <section id="upcoming-nights" class="dashboard-surface upcoming-nights" aria-labelledby="upcoming-nights-title">
