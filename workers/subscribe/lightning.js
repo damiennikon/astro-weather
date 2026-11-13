@@ -23,15 +23,18 @@ export async function lookupLightning(request, url, env) {
   const lng = coordinate(url.searchParams.get('lng'), 180)
   if (lat === null || lng === null) return { body: { status: 'invalid-location' }, status: 400 }
   if (!env.XWEATHER_CLIENT_ID || !env.XWEATHER_CLIENT_SECRET || !env.LIGHTNING_RATE_LIMITER) {
+    console.warn('[lightning] Required Worker binding missing')
     return UNAVAILABLE
   }
 
+  let stage = 'rate limit'
   try {
     const { success } = await env.LIGHTNING_RATE_LIMITER.limit({
       key: request.headers.get('CF-Connecting-IP') ?? 'unknown',
     })
     if (!success) return { body: { status: 'unavailable' }, status: 429 }
 
+    stage = 'provider request'
     const upstream = new URL('https://data.api.xweather.com/lightning/flash/closest')
     upstream.search = new URLSearchParams({
       p: `${lat},${lng}`,
@@ -42,14 +45,20 @@ export async function lookupLightning(request, url, env) {
     })
     const response = await fetch(upstream, {
       signal: AbortSignal.timeout(5000),
-      redirect: 'error',
+      redirect: 'manual',
       cache: 'no-store',
     })
-    if (!response.ok) return UNAVAILABLE
-    const data = await response.json()
-    if (data?.success !== true) return UNAVAILABLE
-    if (data.error?.code === 'warn_no_data') return NO_DETECTION
-    if (data.error || !Array.isArray(data.response)) return UNAVAILABLE
+    stage = 'provider response'
+    const data = await response.json().catch(() => null)
+    const code = data?.error?.code
+    if (response.ok && code === 'warn_no_data') return NO_DETECTION
+    if (!response.ok || data?.success !== true || data.error || !Array.isArray(data.response)) {
+      const knownCodes = ['invalid_client', 'unauthorized', 'insufficient_scope', 'invalid_endpoint',
+        'invalid_location', 'invalid_query', 'invalid_params', 'warn_no_data', 'no_data', 'rate_limit_exceeded']
+      console.warn('[lightning] Xweather response unavailable', response.status,
+        knownCodes.includes(code) ? code : 'unrecognized response')
+      return UNAVAILABLE
+    }
 
     const now = Date.now()
     let nearest = null
@@ -71,7 +80,8 @@ export async function lookupLightning(request, url, env) {
       }
     }
     return nearest ? { body: nearest, status: 200 } : NO_DETECTION
-  } catch {
+  } catch (error) {
+    console.warn('[lightning] Lookup failed', stage, error instanceof TypeError ? 'TypeError' : 'runtime error')
     return UNAVAILABLE
   }
 }
