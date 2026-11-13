@@ -9,6 +9,7 @@ import {
   isActiveNight, defaultNightIndex, skyReading, nextDashboardBoundary, bestWindowSegments, formatDashboardHour,
 } from './dashboardForecast.js'
 import { paintHeroClouds } from './heroSky.js'
+import { renderCloudChart } from './cloudChart.js'
 
 const STORAGE_KEY = 'astro-location'
 const RED_MODE_KEY = 'astro-red-mode'
@@ -110,46 +111,51 @@ export class App {
         </section>
 
         <section id="tonight-panel" class="night-dashboard" aria-label="Observing night forecast" hidden>
-          <nav id="night-picker" class="night-picker" aria-label="Observing nights"></nav>
           <section id="tonight-hero" class="night-hero" aria-labelledby="hero-night-label">
-            <div id="hero-sky" class="hero-sky" aria-hidden="true" data-sky="unavailable">
-              <div class="hero-photo-plane">
-                <img id="hero-photo" src="${OBSERVATORY_IMAGE}" width="1024" height="1024" alt="" decoding="async">
-                <div class="hero-sky-cutout">
-                  <canvas id="hero-clouds" width="420" height="420"></canvas>
-                  <div class="hero-neutral-sky"></div>
+            <div id="hero-readout" class="hero-readout"></div>
+            <figure class="hero-illustration">
+              <div id="hero-sky" class="hero-sky" aria-hidden="true" data-sky="unavailable">
+                <div class="hero-photo-plane">
+                  <img id="hero-photo" src="${OBSERVATORY_IMAGE}" width="1024" height="1024" alt="" decoding="async">
+                  <div class="hero-sky-cutout">
+                    <canvas id="hero-clouds" width="420" height="420"></canvas>
+                    <div class="hero-neutral-sky"></div>
+                  </div>
                 </div>
               </div>
+              <figcaption id="hero-sky-label" class="hero-sky-label">Sky illustration</figcaption>
+            </figure>
+          </section>
+          <div id="tonight-hourly"></div>
+          <section id="upcoming-nights" class="dashboard-surface upcoming-nights" aria-labelledby="upcoming-nights-title">
+            <h3 id="upcoming-nights-title">Upcoming nights</h3>
+            <nav id="night-picker" class="night-picker" aria-label="Observing nights"></nav>
+          </section>
+          <details class="dashboard-surface astro-details">
+            <summary>Astro details</summary>
+            <p id="night-score" class="night-score"></p>
+            <div id="optimal-window-callout" class="dashboard-surface window-panel"></div>
+            <div class="night-details-grid">
+              <section class="dashboard-surface" aria-labelledby="cloud-layers-title">
+                <div class="dashboard-heading"><h3 id="cloud-layers-title">Cloud layers</h3><span id="selected-cloud-hour"></span></div>
+                <div id="hour-cloud-layers"></div>
+                <button id="hour-models-btn" class="link-btn dashboard-link" type="button">Compare models</button>
+              </section>
+              <section class="dashboard-surface" aria-labelledby="observing-title">
+                <div class="dashboard-heading"><h3 id="observing-title">Observing conditions</h3><span id="selected-conditions-hour"></span></div>
+                <dl id="hour-conditions" class="conditions-list"></dl>
+                <details class="night-averages"><summary>Dark-hours averages</summary><div id="summary-metrics"></div></details>
+              </section>
             </div>
-            <div id="hero-readout" class="hero-readout"></div>
-            <p id="hero-sky-label" class="hero-sky-label" role="status"></p>
-          </section>
-          <div id="optimal-window-callout" class="dashboard-surface window-panel"></div>
-          <section class="dashboard-surface hourly-panel" aria-labelledby="hourly-title">
-            <div class="dashboard-heading"><h3 id="hourly-title">Hourly forecast</h3><span>Site time</span></div>
-            <div id="tonight-hourly" class="hourly-scroll"></div>
-            <p id="astro-dark-range" class="darkness-strip"></p>
-          </section>
-          <div class="night-details-grid">
-            <section class="dashboard-surface" aria-labelledby="cloud-layers-title">
-              <div class="dashboard-heading"><h3 id="cloud-layers-title">Cloud layers</h3><span id="selected-cloud-hour"></span></div>
-              <div id="hour-cloud-layers"></div>
-              <button id="hour-models-btn" class="link-btn dashboard-link" type="button">Compare models</button>
+            <section class="dashboard-surface astronomy-panel" aria-labelledby="astronomy-title">
+              <h3 id="astronomy-title">Astronomy</h3>
+              <dl class="astronomy-grid">
+                <div><dt>Moon illumination</dt><dd id="moon-illumination"></dd></div>
+                <div><dt>Moonrise / moonset</dt><dd id="moon-range"></dd></div>
+                <div><dt>Milky Way</dt><dd id="mw-range"></dd></div>
+              </dl>
             </section>
-            <section class="dashboard-surface" aria-labelledby="observing-title">
-              <div class="dashboard-heading"><h3 id="observing-title">Observing conditions</h3><span id="selected-conditions-hour"></span></div>
-              <dl id="hour-conditions" class="conditions-list"></dl>
-              <details class="night-averages"><summary>Dark-hours averages</summary><div id="summary-metrics"></div></details>
-            </section>
-          </div>
-          <section class="dashboard-surface astronomy-panel" aria-labelledby="astronomy-title">
-            <h3 id="astronomy-title">Astronomy</h3>
-            <dl class="astronomy-grid">
-              <div><dt>Moon illumination</dt><dd id="moon-illumination"></dd></div>
-              <div><dt>Moonrise / moonset</dt><dd id="moon-range"></dd></div>
-              <div><dt>Milky Way</dt><dd id="mw-range"></dd></div>
-            </dl>
-          </section>
+          </details>
         </section>
 
         <section id="satellite-panel" class="panel">
@@ -681,6 +687,7 @@ export class App {
     this.state.refreshFailed = false
     this.state.selectedNightDate = null
     this.state.dashboardNightIndex = null
+    this.selectedForecastHour = null
     this.closeConfidenceModal()
     this.root.querySelector('#tonight-panel').setAttribute('hidden', '')
     this.renderDataNotice(null)
@@ -770,8 +777,8 @@ export class App {
     if (redraw || index !== this.state.dashboardNightIndex) {
       this.state.dashboardNightIndex = index
       this.renderTonight(nights[index], index, now)
-    } else {
-      this.updateHeroSky(nights[index], now)
+    } else if (this.selectedForecastHour == null) {
+      this.cloudChart.selectHour(this.defaultForecastHour(nights[index], now))
     }
     clearTimeout(this.dashboardTimer)
     const next = nextDashboardBoundary(nights, now, timeZone)
@@ -780,6 +787,7 @@ export class App {
 
   renderNightPicker(selectedIndex, now, timeZone) {
     const picker = this.root.querySelector('#night-picker')
+    this.root.querySelector('#upcoming-nights').hidden = this.state.nights.length < 2
     const today = zonedDateString(now, safeTimeZone(timeZone))
     const markup = this.state.nights.map((night, index) => {
       const label = night.date === today ? 'Tonight' : isActiveNight(night, now) ? 'In progress' : ''
@@ -812,30 +820,20 @@ export class App {
     const fullSummary = night.wholeNightSummaryAvailable !== false
     const avgScore = fullSummary ? night.nightAvg.score : null
     const avgCloud = fullSummary ? night.nightAvg.cloud : null
-    const avgMoon = fullSummary ? night.nightAvg.moonIllum : null
+    const cloudContext = !fullSummary ? 'Earlier forecast hours unavailable'
+      : night.hours.some(({ isDark, cloud }) => isDark && cloud == null) ? 'Astronomical darkness · Partial data'
+      : 'During astronomical darkness'
     const verdict = scoreToVerdict(avgScore)
     const coverage = this.state.meta?.available?.length
+    const today = zonedDateString(now, safeTimeZone(timeZone))
+    const nightTitle = night.date === today ? 'Tonight' : formatNightDate(night.date, timeZone)
 
     this.root.querySelector('#hero-readout').innerHTML = `
-      <div class="hero-topline">
-        <div class="hero-score verdict-ring-${verdict}" style="--score-fill:${avgScore ?? 0}%" aria-label="${avgScore === null ? 'Score unavailable' : `Suitability ${Math.round(avgScore)} out of 100`}">
-          <strong>${avgScore === null ? '—' : Math.round(avgScore)}</strong><small>/100</small>
-        </div>
-        <div>
-          <h2 id="hero-night-label">${formatNightDate(night.date, timeZone)}</h2>
-          <p class="hero-verdict verdict-text-${verdict}">${VERDICT_LABEL[verdict]}</p>
-          <p class="hero-confidence">${fullSummary ? CONFIDENCE_LABEL[night.confidence] ?? 'Unknown confidence' : 'Partial night · earlier data unavailable'}${coverage != null ? ` · ${coverage}/3 models` : ''}</p>
-        </div>
-      </div>
-      <div class="hero-stats">
-        <span><strong>${formatPercent(avgCloud)}</strong> avg cloud</span>
-        <span><strong>${formatPercent(avgMoon == null ? null : avgMoon * 100)}</strong> avg moon illumination</span>
-      </div>`
-
-    this.root.querySelector('#astro-dark-range').textContent =
-      night.astroStart && night.astroEnd
-        ? `Astronomical darkness · ${formatTime(night.astroStart, timeZone)}–${formatTime(night.astroEnd, timeZone)}`
-        : 'Astronomical darkness unavailable'
+      <h2 id="hero-night-label">${nightTitle}</h2>
+      <p class="hero-cloud-average"><strong>${formatPercent(avgCloud)}</strong><span>Average cloud cover<small>${cloudContext}</small></span></p>`
+    this.root.querySelector('#night-score').innerHTML = `
+      <strong>Astro score ${avgScore === null ? '—' : `${Math.round(avgScore)} / 100`}</strong>
+      <span>${VERDICT_LABEL[verdict]} · ${fullSummary ? CONFIDENCE_LABEL[night.confidence] ?? 'Unknown confidence' : 'Partial night · earlier data unavailable'}${coverage != null ? ` · ${coverage}/3 models` : ''}</span>`
 
     this.root.querySelector('#moon-illumination').textContent = `${formatPercent(night.moonIllum == null ? null : night.moonIllum * 100)} at site midnight`
     this.root.querySelector('#moon-range').textContent = formatMoonRange(night, timeZone)
@@ -845,43 +843,44 @@ export class App {
       : '<p>Whole-night averages unavailable. Earlier hours are missing.</p>'
     this.root.querySelector('#optimal-window-callout').innerHTML = renderBestWindow(night, timeZone)
 
-    const hours = this.root.querySelector('#tonight-hourly')
-    hours.innerHTML = renderHourlyScroll(night, nightIndex, timeZone)
-    const reading = skyReading(night, now)
-    const currentHour = night.hours.findIndex((hour) => reading.hour && +hour.time === +reading.hour)
-    const bestHour = night.hours.findIndex((hour) => fullSummary && +hour.time === +night.optimalWindow?.startHour)
-    const usableHour = night.hours.findIndex((hour) => hour.cloud != null)
-    this.renderHourDetails(night, [currentHour, bestHour, usableHour, 0].find((index) => index >= 0))
-    if (currentHour >= 0) {
-      const button = hours.querySelector(`[data-hour-index="${currentHour}"]`)
-      if (button) hours.scrollLeft = Math.max(0, button.offsetLeft - hours.offsetLeft - 8)
-    }
-    this.updateHeroSky(night, now)
+    if (this.chartNightDate !== night.date) this.selectedForecastHour = null
+    this.chartNightDate = night.date
+    this.cloudChart = renderCloudChart(this.root.querySelector('#tonight-hourly'), night, nightIndex, timeZone, (index, manual) => {
+      if (manual) this.selectedForecastHour = +night.hours[index].time
+      this.renderHourDetails(night, index)
+    })
+    const selected = night.hours.findIndex(({ time }) => +time === this.selectedForecastHour)
+    if (selected < 0) this.selectedForecastHour = null
+    this.cloudChart.selectHour(selected < 0 ? this.defaultForecastHour(night, now) : selected)
   }
 
-  updateHeroSky(night, now) {
-    const timeZone = this.state.meta?.timezone ?? this.state.location?.timezone
-    const { cloud, hour } = skyReading(night, now)
+  defaultForecastHour(night, now) {
+    const reading = skyReading(night, now)
+    const currentHour = night.hours.findIndex((hour) => reading.hour && +hour.time === +reading.hour)
+    const firstDark = night.hours.findIndex((hour) => hour.isDark && hour.cloud != null)
+    const usableHour = night.hours.findIndex((hour) => hour.cloud != null)
+    return [currentHour, firstDark, usableHour, 0].find((index) => index >= 0)
+  }
+
+  updateHeroSky(cloud) {
     const canvas = this.root.querySelector('#hero-clouds')
     const sky = this.root.querySelector('#hero-sky')
     sky.dataset.sky = cloud == null || !paintHeroClouds(canvas, cloud) ? 'unavailable' : 'forecast'
     this.root.querySelector('#hero-sky-label').textContent = cloud == null
-      ? 'Illustrative sky · cloud forecast unavailable'
-      : `Illustrative sky · ${hour ? formatDashboardHour(night, hour, timeZone) + ' site forecast' : 'upcoming night average'} · ${formatPercent(cloud)} cloud`
+      ? 'Cloud forecast unavailable'
+      : 'Sky illustration'
   }
 
   renderHourDetails(night, index) {
     const hour = night.hours[index]
     if (!hour) return
     this.state.dashboardHourIndex = index
+    this.updateHeroSky(hour.cloud)
     const time = formatDashboardHour(night, hour.time, this.state.meta?.timezone ?? this.state.location?.timezone)
     this.root.querySelector('#selected-cloud-hour').textContent = `${time} · ${formatPercent(hour.cloud)} total`
     this.root.querySelector('#selected-conditions-hour').textContent = time
     this.root.querySelector('#hour-cloud-layers').innerHTML = renderCloudLayers(hour)
     this.root.querySelector('#hour-conditions').innerHTML = renderHourConditions(hour)
-    this.root.querySelectorAll('#tonight-hourly .hour-card').forEach((button) => {
-      button.setAttribute('aria-pressed', String(Number(button.dataset.hourIndex) === index))
-    })
   }
 
   // ---------------------------------------------------------------------
@@ -889,13 +888,13 @@ export class App {
   // ---------------------------------------------------------------------
 
   handleHourCardClick(e) {
-    const card = e.target.closest('.hour-card')
+    const card = e.target.closest('[data-hour-index]')
     if (!card) return
     const nightIndex = Number(card.dataset.nightIndex)
     const hourIndex = Number(card.dataset.hourIndex)
     const night = this.state.nights[nightIndex]
     const hour = night.hours[hourIndex]
-    this.renderHourDetails(night, hourIndex)
+    this.cloudChart.selectHour(hourIndex, true)
     this.openConfidenceModal(night, hour, card)
   }
 
@@ -1190,49 +1189,6 @@ function renderHourConditions(hour) {
 
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
-}
-
-// ---------------------------------------------------------------------
-// Hourly scroll rendering
-// ---------------------------------------------------------------------
-
-function renderHourlyScroll(night, nightIndex, timeZone) {
-  let html = ''
-  let lastIsDark = null
-  night.hours.forEach((hour, hourIndex) => {
-    if (lastIsDark !== null && hour.isDark !== lastIsDark) {
-      html += `<div class="hour-divider">${hour.isDark ? 'Astro Dark Begins' : 'Astro Dark Ends'}</div>`
-    }
-    lastIsDark = hour.isDark
-    html += renderHourCard(night, hour, nightIndex, hourIndex, timeZone)
-  })
-  return html
-}
-
-function renderHourCard(night, hour, nightIndex, hourIndex, timeZone) {
-  const timeLabel = formatDashboardHour(night, hour.time, timeZone)
-  const window = night.wholeNightSummaryAvailable === false ? null : night.optimalWindow
-  const best = Boolean(window && hour.score != null && hour.time >= window.startHour && hour.time <= window.endHour)
-  const quality = !hour.isDark ? 'Outside darkness'
-    : hour.score == null ? 'Score unavailable'
-    : `${hour.score}/100 · ${VERDICT_LABEL[hour.verdict]}`
-  const moon = hour.moonAlt == null ? '' : hour.moonAlt > 0 ? 'Moon up' : 'Moon down'
-  const status = hour.cloud == null ? 'Cloud unavailable'
-    : hour.confidence === 'partial' ? 'Partial inputs'
-    : hour.agreement === 'disagree' ? 'Models disagree'
-    : hour.agreement === 'mixed' ? 'Some disagreement'
-    : hour.agreement === 'single' ? 'Single model'
-    : ''
-  return `
-    <button type="button" class="hour-card dashboard-hour ${hour.isDark ? 'dark' : 'daylight'}" data-night-index="${nightIndex}" data-hour-index="${hourIndex}" data-best="${best}" aria-pressed="false">
-      <span class="hour-time">${timeLabel}</span>
-      <span>${hour.cloud == null ? '— cloud' : `${formatPercent(hour.cloud)} cloud`}</span>
-      <strong class="hour-quality verdict-text-${hour.verdict}">${quality}</strong>
-      ${moon ? `<small>${moon}</small>` : ''}
-      ${!hour.isDark && hour.temp != null ? `<small>${Math.round(hour.temp)} °C</small>` : ''}
-      ${status ? `<small>${status}</small>` : ''}
-      ${best ? '<small class="hour-best">Best window</small>' : ''}
-    </button>`
 }
 
 // ---------------------------------------------------------------------
