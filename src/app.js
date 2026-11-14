@@ -6,7 +6,7 @@ import {
 } from './notifications.js'
 import { formatTimeInZone, formatCivilDate, zonedDateString, safeTimeZone } from './timezone.js'
 import {
-  isActiveNight, defaultNightIndex, skyReading, nextDashboardBoundary, bestWindowSegments, formatDashboardHour,
+  hasUpcomingCloudData, isActiveNight, defaultNightIndex, skyReading, nextDashboardBoundary, bestWindowSegments, formatDashboardHour,
 } from './dashboardForecast.js'
 import { paintHeroClouds } from './heroSky.js'
 import { renderCloudChart } from './cloudChart.js'
@@ -658,7 +658,7 @@ export class App {
         this.finishForecast({ message: 'No forecast nights were returned.' })
         return
       }
-      if (this.state.nights && meta?.cached?.length && meta.cached.length === meta.available.length) {
+      if (hasUpcomingCloudData(this.state.nights, new Date()) && meta?.cached?.length && meta.cached.length === meta.available.length) {
         this.finishForecast({ message: 'Only cached model data was available.' })
         return
       }
@@ -683,9 +683,10 @@ export class App {
     this.worker?.terminate()
     this.worker = null
     this.showLoading(false)
-    if (error && this.state.nights) {
+    if (error && hasUpcomingCloudData(this.state.nights, new Date())) {
       this.state.refreshFailed = true
     } else {
+      if (error && this.state.nights) this.clearForecast()
       this.showForecastError(error)
     }
     this.renderForecastStatus()
@@ -715,13 +716,20 @@ export class App {
     if (!nights) return
 
     const timeZone = safeTimeZone(meta?.timezone ?? this.state.location?.timezone)
-    const cached = (meta?.cached ?? []).map((model) => MODEL_LABEL[model] ?? model)
+    const siteTime = (fetchedAt) => {
+      const day = formatCivilDate(zonedDateString(fetchedAt, timeZone), timeZone)
+      return `${day} at ${formatTime(fetchedAt, timeZone)} (site time)`
+    }
     const status = this.root.querySelector('#forecast-freshness')
-    if (cached.length) {
-      status.textContent = `Using cached data for ${cached.join(', ')}. Those models could not be refreshed.`
+    if (meta?.cached?.length) {
+      const cached = meta.cached.map((model) => {
+        const fetchedAt = meta.cachedFetchedAt?.[model]
+        return fetchedAt ? `${MODEL_LABEL[model]} (fetched ${siteTime(fetchedAt)})` : MODEL_LABEL[model]
+      })
+      const live = meta.available.filter((model) => !meta.cached.includes(model)).map((model) => MODEL_LABEL[model])
+      status.textContent = `Using cached data for ${cached.join(', ')}.${live.length ? ` Live data: ${live.join(', ')}.` : ''}`
     } else if (forecastFetchedAt) {
-      const day = formatCivilDate(zonedDateString(forecastFetchedAt, timeZone), timeZone)
-      status.textContent = `Last fetched ${day} at ${formatTime(forecastFetchedAt, timeZone)} (site time)`
+      status.textContent = `Last fetched ${siteTime(forecastFetchedAt)}`
     }
 
     if (refreshFailed) {

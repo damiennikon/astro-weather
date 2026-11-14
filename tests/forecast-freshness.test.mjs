@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { registerHooks } from 'node:module'
-import { CACHED_FORECAST_HEADER, markCachedForecast } from '../src/forecastCache.js'
+import { CACHED_FORECAST_HEADER, withForecastHeaders } from '../src/forecastCache.js'
 import { buildForecast } from '../src/forecast.js'
 import { buildFixture, okResponse } from './helpers/openMeteoFixture.mjs'
 
@@ -26,7 +26,7 @@ const ALL_FAILED = {
   code: 'UPSTREAM_UNAVAILABLE',
   failures: ['ecmwf', 'ukmo', 'icon'].map((model) => ({ model, reason: 'offline' })),
 }
-const NIGHTS = [{ date: '2026-08-19' }]
+const NIGHTS = [{ date: '2026-08-19', hours: [{ time: new Date('2026-08-19T11:00:00Z'), cloud: 35 }] }]
 
 function setupApp(t) {
   const nodes = new Map()
@@ -172,6 +172,19 @@ test('same-site refresh failure keeps the previous forecast and its original sit
   assert.match(get('#forecast-freshness').textContent, /02:00/)
 })
 
+test('a failed refresh does not keep a forecast whose hours have passed', (t) => {
+  const { app, workers, hidden } = setupApp(t)
+  app.fetchForecast(SITE)
+  workers[0].send({ type: 'FORECAST_READY', nights: NIGHTS })
+  t.mock.timers.setTime(Date.parse('2026-08-20T12:00:00Z'))
+
+  app.fetchForecast(SITE)
+  workers[1].send(ALL_FAILED)
+  assert.equal(app.state.nights, null)
+  assert.equal(hidden('#tonight-panel'), true)
+  assert.equal(hidden('#forecast-error'), false)
+})
+
 test('changing location clears the previous forecast and ignores superseded worker messages', (t) => {
   const { app, workers, hidden } = setupApp(t)
   app.fetchForecast(SITE)
@@ -195,6 +208,7 @@ test('cached model data is labelled separately from unavailable models and gets 
     nights: NIGHTS,
     meta: {
       cached: ['ecmwf'],
+      cachedFetchedAt: { ecmwf: Date.parse('2026-08-18T17:00:00Z') },
       degraded: true,
       missing: ['icon'],
       available: ['ecmwf', 'ukmo'],
@@ -203,7 +217,7 @@ test('cached model data is labelled separately from unavailable models and gets 
     },
   })
   assert.equal(app.state.forecastFetchedAt, null)
-  assert.match(get('#forecast-freshness').textContent, /Using cached data for ECMWF/)
+  assert.match(get('#forecast-freshness').textContent, /Using cached data for ECMWF.*01:00.*Live data: UKMO/)
   assert.equal(hidden('#data-notice'), false)
   assert.match(get('#data-notice').innerHTML, /Model data unavailable.*ICON \(timed out\)/)
 })
@@ -248,6 +262,7 @@ test('the forecast worker carries the cache marker through to the app for models
     timeZone: SITE.timezone,
     startYmd: { year: 2026, month: 8, day: 19 },
   })
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-08-19T16:00:00Z') })
   const messages = []
   const oldSelf = globalThis.self
   globalThis.self = { postMessage: (message) => messages.push(message) }
@@ -257,7 +272,7 @@ test('the forecast worker carries the cache marker through to the app for models
     const model = new URL(url).searchParams.get('models')
     const response = Response.json(model.startsWith('icon') ? { error: true } : fixture)
     if (model.startsWith('ukmo')) return response
-    const marked = markCachedForecast({ cachedResponse: response })
+    const marked = withForecastHeaders(response, Date.now() - 60_000, true)
     assert.equal(response.headers.has(CACHED_FORECAST_HEADER), false)
     return marked
   })
@@ -266,5 +281,6 @@ test('the forecast worker carries the cache marker through to the app for models
   const ready = messages.at(-1)
   assert.equal(ready.type, 'FORECAST_READY')
   assert.deepEqual(ready.meta.cached, ['ecmwf'])
+  assert.deepEqual(ready.meta.cachedFetchedAt, { ecmwf: Date.now() - 60_000 })
   assert.deepEqual(ready.meta.missing, ['icon'])
 })

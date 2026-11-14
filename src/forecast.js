@@ -5,10 +5,9 @@ import * as Astronomy from 'astronomy-engine'
 import { scoreHour, findOptimalWindow } from './scoring.js'
 import { safeTimeZone, zonedParts, zonedToUtc, addDays, formatYmd } from './timezone.js'
 
+const CLOUD_FIELDS = ['cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high']
 const SURFACE_FIELDS = [
-  'cloud_cover_low',
-  'cloud_cover_mid',
-  'cloud_cover_high',
+  ...CLOUD_FIELDS,
   'temperature_2m',
   'relative_humidity_2m',
   'dew_point_2m',
@@ -96,9 +95,14 @@ export async function fetchModel(
     clearTimeout(timer)
   }
 
-  if (!res.ok || json?.error) {
+  if (!res.ok) {
     throw new Error(String(json?.reason ?? `HTTP ${res.status}`))
   }
+  return validateForecastPayload(json, requiredFields)
+}
+
+export function validateForecastPayload(json, requiredFields) {
+  if (json?.error) throw new Error(String(json.reason ?? 'Forecast returned an error'))
   const times = json?.hourly?.time
   if (!Array.isArray(times) || times.length === 0) {
     throw new Error('response contained no hourly data')
@@ -196,7 +200,12 @@ export async function buildForecast(lat, lng, timezone, options = {}) {
   const maxNights = options.maxNights ?? DEFAULT_MAX_NIGHTS
   const candidates = []
   for (let n = 0; n < maxNights; n++) {
-    candidates.push(buildNight(addDays(today, n), tz, observer, models))
+    const day = addDays(today, n)
+    const { displayStart, displayEnd } = nightDisplayWindow(day, tz)
+    if (options.hasDisplayCoverage && !fetched.available.every((id) =>
+      options.hasDisplayCoverage(id, fetched.responses[id], displayStart, displayEnd),
+    )) continue
+    candidates.push(buildNight(day, tz, observer, models))
   }
 
   // Only keep nights whose scored (dark-hour) window is fully inside every model's
@@ -319,10 +328,22 @@ function average(values) {
 
 // `ymd` is a civil date in the site's timezone, so the night rolls over at the
 // site's midnight rather than the viewer's.
-function nightDisplayWindow(ymd, timeZone) {
+export function nightDisplayWindow(ymd, timeZone) {
   const displayStart = zonedToUtc(ymd.year, ymd.month, ymd.day, 17, 0, timeZone)
   const displayEnd = new Date(displayStart.getTime() + DISPLAY_HOURS * 3600 * 1000)
   return { displayStart, displayEnd }
+}
+
+export function coversForecastHours(response, start, end, remainingFrom = start) {
+  const index = indexHourly(response)
+  for (let hour = +start; hour < +end; hour += 3600_000) {
+    if (hour + 3600_000 <= +remainingFrom) continue
+    const position = index.get(hour / 1000)
+    if (position === undefined || !CLOUD_FIELDS.every(
+      (field) => response.hourly[field][position] != null,
+    )) return false
+  }
+  return true
 }
 
 export function buildNight(ymd, timeZone, observer, models) {
