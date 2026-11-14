@@ -2,6 +2,12 @@ import { formatTimeInZone, safeTimeZone, zonedDateString, zonedParts, zonedToUtc
 
 const HOUR_MS = 3_600_000
 
+export function hasUpcomingCloudData(nights, now) {
+  return nights?.some((night) => night?.hours.some(
+    ({ time, cloud }) => cloud != null && +time + HOUR_MS > +now,
+  ))
+}
+
 export function isActiveNight(night, now) {
   return night.displayStart <= now && now < night.displayEnd
 }

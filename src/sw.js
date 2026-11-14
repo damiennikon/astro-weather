@@ -2,7 +2,8 @@ import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
 import { registerRoute } from 'workbox-routing'
 import { NetworkFirst } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
-import { markCachedForecast } from './forecastCache.js'
+import { FORECAST_CACHE_MAX_AGE_SECONDS } from './forecastCache.js'
+import { forecastCachePlugin } from './forecastCachePlugin.js'
 
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
@@ -18,10 +19,11 @@ registerRoute(
   ({ url }) => url.origin === 'https://api.open-meteo.com' && url.pathname === '/v1/forecast',
   new NetworkFirst({
     cacheName: 'open-meteo-cache',
+    networkTimeoutSeconds: 10, // Leave time before the forecast worker's 15-second deadline.
     fetchOptions: { cache: 'no-store' },
     plugins: [
-      new ExpirationPlugin({ maxAgeSeconds: 3600 }),
-      { cachedResponseWillBeUsed: markCachedForecast },
+      new ExpirationPlugin({ maxAgeSeconds: FORECAST_CACHE_MAX_AGE_SECONDS }),
+      forecastCachePlugin,
     ],
   })
 )
