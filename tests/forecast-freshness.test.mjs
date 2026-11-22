@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { registerHooks } from 'node:module'
 import { CACHED_FORECAST_HEADER, withForecastHeaders } from '../src/forecastCache.js'
 import { buildForecast } from '../src/forecast.js'
+import { renderCloudChart } from '../src/cloudChart.js'
 import { buildFixture, okResponse } from './helpers/openMeteoFixture.mjs'
 
 // The notification module reads Vite build settings on import. These tests
@@ -72,6 +73,29 @@ function setupApp(t) {
   app.renderTonight = () => root.querySelector('#tonight-panel').removeAttribute('hidden')
   return { app, workers, get: root.querySelector, hidden: (selector) => root.querySelector(selector).hasAttribute('hidden') }
 }
+
+test('hourly cloud bands round boundary values and preserve precise chart positions', (t) => {
+  const { app, get } = setupApp(t)
+  const values = [0, 10.49, 10.5, 14, 15, 20.49, 20.5, 22, 90.49, 90.5, 100, null]
+  const bands = ['0–10%', '0–10%', '11–20%', '11–20%', '11–20%', '11–20%',
+    '21–30%', '21–30%', '81–90%', '91–100%', '91–100%', '—']
+  const start = Date.parse('2026-11-22T07:00:00Z')
+  const night = {
+    hours: values.map((cloud, index) => ({ time: new Date(start + index * 3600_000), cloud, temp: 21 })),
+  }
+  const chart = renderCloudChart(app.root, night, 0, 'Australia/Brisbane', () => {})
+  values.forEach((value, index) => {
+    chart.selectHour(index, true)
+    assert.equal(get('#tonight-selected-cloud').textContent, bands[index])
+    assert.match(app.root.innerHTML, new RegExp(`<td>${bands[index]}</td>`))
+    assert.equal(get('#tonight-selected-temp').textContent, '21°C')
+  })
+  chart.selectHour(7, true)
+  assert.equal(get('.tonight-chart-dot').style.top, '78%')
+  assert.match(app.root.innerHTML, /top: 78%/)
+  chart.selectHour(values.length - 1, true)
+  assert.equal(get('.tonight-chart-dot').hidden, true)
+})
 
 test('an open app refreshes after fifteen minutes and cancels background polling', (t) => {
   const { app, workers } = setupApp(t)
@@ -190,7 +214,7 @@ test('the hybrid dashboard renders the active post-midnight forecast and switche
   assert.match(get('#night-picker').innerHTML, /In progress/)
   assert.match(get('#hero-readout').innerHTML, /Earlier forecast hours unavailable/)
   assert.equal(get('#hero-sky-label').textContent, 'Sky illustration')
-  assert.equal(get('#tonight-selected-cloud').textContent, '1%')
+  assert.equal(get('#tonight-selected-cloud').textContent, '0–10%')
   assert.match(get('#selected-cloud-hour').textContent, /01:00 · 1% total/)
   assert.match(get('#optimal-window-callout').innerHTML, /Whole-night window unavailable/)
 
@@ -198,7 +222,7 @@ test('the hybrid dashboard renders the active post-midnight forecast and switche
   app.state.selectedNightDate = future.date
   app.renderDashboard(new Date(), true)
   const firstDark = future.hours.find(({ isDark }) => isDark)
-  assert.equal(get('#tonight-selected-cloud').textContent, `${Math.round(firstDark.cloud)}%`)
+  assert.equal(get('#tonight-selected-cloud').textContent, '11–20%')
   assert.equal(get('#tonight-selected-temp').textContent, `${Math.round(firstDark.temp)}°C`)
   assert.match(get('#hero-readout').innerHTML, /Average cloud cover/)
   assert.match(get('#tonight-hourly').innerHTML, /data-night-index="1"/)
@@ -213,7 +237,7 @@ test('the hybrid dashboard renders the active post-midnight forecast and switche
   app.cloudChart.selectHour(future.hours.length - 1, true)
   app.renderDashboard(new Date(), true)
   assert.equal(app.selectedForecastHour, +last.time)
-  assert.equal(get('#tonight-selected-cloud').textContent, `${Math.round(last.cloud)}%`)
+  assert.equal(get('#tonight-selected-cloud').textContent, '0–10%')
 })
 
 test('same-site refresh failure keeps the previous forecast and its original site-local fetch time', (t) => {

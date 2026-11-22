@@ -543,12 +543,16 @@ body.red-mode .hero-photo-plane { filter: grayscale(1) sepia(1) saturate(5) hue-
   border-bottom: 1px solid var(--glass-border);
 }
 
-.tonight-readout div { display: grid; gap: 0.15rem; }
+.tonight-readout div { display: grid; min-width: 0; gap: 0.15rem; }
 .tonight-readout div + div { padding-left: 0.75rem; border-left: 1px solid var(--glass-border); }
 .tonight-readout strong {
   color: var(--text-primary);
   font: 600 2rem / 1 var(--font-display);
   font-variant-numeric: tabular-nums;
+}
+#tonight-selected-cloud {
+  font-size: clamp(1.6rem, 7vw, 2rem);
+  white-space: nowrap;
 }
 .tonight-readout span { color: var(--text-muted); font-size: 0.875rem; }
 

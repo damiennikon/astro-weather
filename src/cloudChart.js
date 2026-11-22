@@ -1,8 +1,15 @@
 import { formatDashboardHour } from './dashboardForecast.js'
 import { safeTimeZone } from './timezone.js'
 
-const formatCloud = (value) => Number.isFinite(value) ? `${Math.round(value)}%` : '—'
 const formatTemp = (value) => Number.isFinite(value) ? `${Math.round(value)}°C` : '—'
+
+function formatCloud(value) {
+  if (!Number.isFinite(value)) return '—'
+  const rounded = Math.max(0, Math.min(100, Math.round(value)))
+  if (rounded <= 10) return '0–10%'
+  const upper = Math.ceil(rounded / 10) * 10
+  return `${upper - 9}–${upper}%`
+}
 
 export function renderCloudChart(container, night, nightIndex, timeZone, onSelect) {
   const { hours, astroStart, astroEnd } = night
