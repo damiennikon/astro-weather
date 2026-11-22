@@ -17,7 +17,7 @@ const hooks = registerHooks({
     return nextResolve(specifier, context)
   },
 })
-const { App } = await import('../src/app.js').finally(() => hooks.deregister())
+const { App, FORECAST_REFRESH_INTERVAL_MS } = await import('../src/app.js').finally(() => hooks.deregister())
 
 const SITE = { name: 'Perth', lat: -31.95, lng: 115.86, timezone: 'Australia/Perth' }
 const OTHER_SITE = { name: 'Brisbane', lat: -27.47, lng: 153.03, timezone: 'Australia/Brisbane' }
@@ -49,11 +49,11 @@ function setupApp(t) {
     },
     querySelectorAll: () => [],
   }
-  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-08-18T17:30:00Z') })
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: new Date('2026-08-18T17:30:00Z') })
   const workers = []
   const oldDocument = globalThis.document
   const oldWorker = globalThis.Worker
-  globalThis.document = { querySelector: () => root }
+  globalThis.document = { querySelector: () => root, visibilityState: 'visible' }
   globalThis.Worker = class {
     constructor() { workers.push(this) }
     postMessage() {}
@@ -66,10 +66,79 @@ function setupApp(t) {
   })
   const app = new App()
   t.after(() => clearTimeout(app.dashboardTimer))
+  t.after(() => clearTimeout(app.forecastRefreshTimer))
   app.state.location = SITE
+  app.cloudChart = { selectHour() {} }
   app.renderTonight = () => root.querySelector('#tonight-panel').removeAttribute('hidden')
   return { app, workers, get: root.querySelector, hidden: (selector) => root.querySelector(selector).hasAttribute('hidden') }
 }
+
+test('an open app refreshes after fifteen minutes and cancels background polling', (t) => {
+  const { app, workers } = setupApp(t)
+  app.fetchForecast(SITE)
+  workers[0].send({ type: 'FORECAST_READY', nights: NIGHTS })
+  t.mock.timers.tick(FORECAST_REFRESH_INTERVAL_MS)
+  assert.equal(workers.length, 2)
+  app.handleVisibilityChange()
+  assert.equal(workers.length, 2, 'resume must not duplicate an active fetch')
+  workers[1].send({ type: 'FORECAST_READY', nights: NIGHTS })
+  document.visibilityState = 'hidden'
+  app.handleVisibilityChange()
+  t.mock.timers.tick(FORECAST_REFRESH_INTERVAL_MS * 2)
+  assert.equal(workers.length, 2)
+  document.visibilityState = 'visible'
+  app.handleVisibilityChange()
+  assert.equal(workers.length, 3)
+})
+
+test('a fresh resume resets the chart to the current hour without another weather request', (t) => {
+  const { app, workers } = setupApp(t)
+  app.fetchForecast(SITE)
+  workers[0].send({ type: 'FORECAST_READY', nights: NIGHTS })
+  app.selectedForecastHour = +NIGHTS[0].hours[0].time
+  t.mock.timers.tick(60_000)
+  app.handleVisibilityChange()
+  assert.equal(workers.length, 1)
+  assert.equal(app.selectedForecastHour, null)
+})
+
+test('failed automatic refreshes keep the forecast and wait before retrying', (t) => {
+  const { app, workers, hidden } = setupApp(t)
+  app.fetchForecast(SITE)
+  workers[0].send({ type: 'FORECAST_READY', nights: NIGHTS })
+  t.mock.timers.tick(FORECAST_REFRESH_INTERVAL_MS)
+  workers[1].send(ALL_FAILED)
+  assert.equal(hidden('#forecast-refresh-warning'), false)
+  for (let i = 0; i < 3; i++) app.handleVisibilityChange()
+  assert.equal(workers.length, 2)
+  t.mock.timers.tick(FORECAST_REFRESH_INTERVAL_MS)
+  assert.equal(workers.length, 3)
+})
+
+test('the Loganholme dashboard reports the closed Milky Way season instead of a late-night recommendation', async (t) => {
+  const { app, workers, get } = setupApp(t)
+  t.mock.timers.setTime(Date.parse('2026-11-22T10:00:00Z'))
+  const site = { name: 'Loganholme', lat: -27.67, lng: 153.19, timezone: 'Australia/Brisbane' }
+  app.state.location = site
+  app.renderTonight = App.prototype.renderTonight.bind(app)
+  const canvas = get('#hero-clouds')
+  canvas.width = canvas.height = 48
+  canvas.getContext = () => ({
+    clearRect() {},
+    createImageData: (width, height) => ({ data: new Uint8ClampedArray(width * height * 4) }),
+    putImageData() {},
+  })
+  const fixture = buildFixture({ timeZone: site.timezone, startYmd: { year: 2026, month: 11, day: 22 } })
+  const result = await buildForecast(site.lat, site.lng, site.timezone, {
+    now: new Date(), maxNights: 1, fetchImpl: async () => okResponse(fixture),
+  })
+  app.fetchForecast(site)
+  workers[0].send({ type: 'FORECAST_READY', ...result })
+  assert.match(get('#optimal-window-callout').innerHTML, /Best Milky Way window/)
+  assert.match(get('#optimal-window-callout').innerHTML, /No usable Milky Way core window during astronomical darkness/)
+  assert.match(get('#mw-range').textContent, /Below 10° by 19:44, before astronomical darkness/)
+  assert.match(get('#tonight-hourly').innerHTML, /Cloud forecast/)
+})
 
 test('all models failing on first load shows a retry and no forecast', (t) => {
   const { app, workers, get, hidden } = setupApp(t)

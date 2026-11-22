@@ -38,6 +38,8 @@ const GALACTIC_CENTER_RA = 17.76 // hours
 const GALACTIC_CENTER_DEC = -29.0 // degrees
 const MW_ALT_THRESHOLD = 10 // degrees
 const MW_FADE_WINDOW_MS = 45 * 60 * 1000
+const GALACTIC_CENTER = Astronomy.Body.Star1
+Astronomy.DefineStar(GALACTIC_CENTER, GALACTIC_CENTER_RA, GALACTIC_CENTER_DEC, 26000)
 
 export class ForecastUnavailableError extends Error {
   constructor(message, failures) {
@@ -391,7 +393,15 @@ export function buildNight(ymd, timeZone, observer, models) {
     moonIllum: average(darkHours.map((h) => h.moonIllum)),
   }
 
-  const { mwRise, mwSet } = findMilkyWayTransitions(hours)
+  const { mwRise, mwSet, mwWindows } = findMilkyWayWindows(observer, displayStart, displayEnd, astroStart, astroEnd)
+  const milkyWayWindow = findOptimalWindow(mwWindows.flatMap(({ start, end }) => hours.flatMap((hour) => {
+    const from = Math.max(+hour.time, +start)
+    const to = Math.min(+hour.time + 3600_000, +end)
+    if (from >= to) return []
+    // Twilight may finish partway through an hourly weather sample.
+    const { score } = scoreHour(hour)
+    return [{ time: new Date(from), endTime: new Date(to), score }]
+  })))
 
   return {
     date: formatYmd(ymd),
@@ -404,6 +414,8 @@ export function buildNight(ymd, timeZone, observer, models) {
     moonIllum: moonIllumNight,
     mwRise,
     mwSet,
+    mwWindows,
+    milkyWayWindow,
     hours,
     optimalWindow,
     nightAvg,
@@ -463,7 +475,7 @@ function buildHour(time, isDark, astroEnd, observer, models) {
   const moonAlt = Astronomy.Horizon(time, observer, moonEq.ra, moonEq.dec, 'normal').altitude
   const moonIllum = Astronomy.Illumination(Astronomy.Body.Moon, time).phase_fraction
 
-  const mwAlt = Astronomy.Horizon(time, observer, GALACTIC_CENTER_RA, GALACTIC_CENTER_DEC, 'normal').altitude
+  const mwAlt = milkyWayAltitude(time, observer)
   const mwVisible = mwAlt > MW_ALT_THRESHOLD
   const mwFading = mwVisible && astroEnd !== null && Math.abs(time.getTime() - astroEnd.getTime()) <= MW_FADE_WINDOW_MS
 
@@ -528,13 +540,25 @@ function buildHour(time, isDark, astroEnd, observer, models) {
   }
 }
 
-function findMilkyWayTransitions(hours) {
-  let mwRise = null
-  let mwSet = null
-  for (let i = 0; i < hours.length; i++) {
-    const prevVisible = i > 0 ? hours[i - 1].mwVisible : false
-    if (hours[i].mwVisible && !prevVisible) mwRise = hours[i].time
-    if (!hours[i].mwVisible && prevVisible && mwSet === null) mwSet = hours[i].time
+function milkyWayAltitude(time, observer) {
+  const equatorial = Astronomy.Equator(GALACTIC_CENTER, time, observer, true, true)
+  return Astronomy.Horizon(time, observer, equatorial.ra, equatorial.dec).altitude
+}
+
+function findMilkyWayWindows(observer, displayStart, displayEnd, astroStart, astroEnd) {
+  const limitDays = (displayEnd - displayStart) / 86400_000
+  const mwRise = Astronomy.SearchAltitude(GALACTIC_CENTER, observer, 1, displayStart, limitDays, MW_ALT_THRESHOLD)?.date ?? null
+  const mwSet = Astronomy.SearchAltitude(GALACTIC_CENTER, observer, -1, displayStart, limitDays, MW_ALT_THRESHOLD)?.date ?? null
+  const boundaries = [displayStart, mwRise, mwSet, displayEnd].filter(Boolean).sort((a, b) => a - b)
+  const mwWindows = []
+  if (astroStart && astroEnd) {
+    for (let i = 0; i < boundaries.length - 1; i++) {
+      const start = new Date(Math.max(+boundaries[i], +astroStart))
+      const end = new Date(Math.min(+boundaries[i + 1], +astroEnd))
+      if (start < end && milkyWayAltitude(new Date((+start + +end) / 2), observer) > MW_ALT_THRESHOLD) {
+        mwWindows.push({ start, end })
+      }
+    }
   }
-  return { mwRise, mwSet }
+  return { mwRise, mwSet, mwWindows }
 }

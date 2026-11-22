@@ -16,6 +16,7 @@ const STORAGE_KEY = 'astro-location'
 const RED_MODE_KEY = 'astro-red-mode'
 const DISCLAIMER_DISMISSED_KEY = 'astro-disclaimer-dismissed'
 const OBSERVATORY_IMAGE = new URL('./assets/observatory.webp', import.meta.url).href
+export const FORECAST_REFRESH_INTERVAL_MS = 15 * 60_000
 
 const VERDICT_LABEL = {
   great: 'Great',
@@ -58,6 +59,8 @@ export class App {
     }
     this.worker = null
     this.dashboardTimer = null
+    this.forecastRefreshTimer = null
+    this.lastForecastAttemptAt = null
   }
 
   init() {
@@ -154,7 +157,7 @@ export class App {
               <dl class="astronomy-grid">
                 <div><dt>Moon illumination</dt><dd id="moon-illumination"></dd></div>
                 <div><dt>Moonrise / moonset</dt><dd id="moon-range"></dd></div>
-                <div><dt>Milky Way</dt><dd id="mw-range"></dd></div>
+                <div><dt>Milky Way core</dt><dd id="mw-range"></dd></div>
               </dl>
             </section>
           </details>
@@ -263,11 +266,7 @@ export class App {
     }
     heroPhoto.addEventListener('error', markPhotoUnavailable)
     if (heroPhoto.complete && !heroPhoto.naturalWidth) markPhotoUnavailable()
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState !== 'visible') return
-      if (this.state.nights) this.renderDashboard()
-      if (this.state.location) void this.lightning?.check(this.state.location)
-    })
+    document.addEventListener('visibilitychange', () => this.handleVisibilityChange())
     this.root.querySelector('#confidence-modal').addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -615,7 +614,36 @@ export class App {
   // Worker / forecast fetching
   // ---------------------------------------------------------------------
 
+  handleVisibilityChange() {
+    clearTimeout(this.forecastRefreshTimer)
+    if (document.visibilityState !== 'visible') return
+    // Returning to the app should return the chart to the current forecast hour.
+    this.selectedForecastHour = null
+    if (this.state.nights) this.renderDashboard()
+    if (this.state.location && !this.worker &&
+        (this.lastForecastAttemptAt === null || Date.now() - this.lastForecastAttemptAt >= FORECAST_REFRESH_INTERVAL_MS)) {
+      this.fetchForecast(this.state.location)
+    } else {
+      if (this.state.location) void this.lightning?.check(this.state.location)
+      this.scheduleForecastRefresh()
+    }
+  }
+
+  scheduleForecastRefresh() {
+    clearTimeout(this.forecastRefreshTimer)
+    if (!this.state.location || this.worker || document.visibilityState !== 'visible') return
+    const elapsed = Date.now() - (this.lastForecastAttemptAt ?? Date.now())
+    this.forecastRefreshTimer = setTimeout(
+      () => {
+        if (document.visibilityState === 'visible') this.fetchForecast(this.state.location)
+      },
+      Math.max(1000, FORECAST_REFRESH_INTERVAL_MS - elapsed),
+    )
+  }
+
   fetchForecast(location) {
+    clearTimeout(this.forecastRefreshTimer)
+    this.lastForecastAttemptAt = Date.now()
     void this.lightning?.check(location)
     const previous = this.state.forecastLocation
     if (!previous || previous.lat !== location.lat || previous.lng !== location.lng ||
@@ -690,6 +718,7 @@ export class App {
       this.showForecastError(error)
     }
     this.renderForecastStatus()
+    this.scheduleForecastRefresh()
   }
 
   clearForecast() {
@@ -862,7 +891,7 @@ export class App {
     this.root.querySelector('#summary-metrics').innerHTML = fullSummary
       ? renderNightSummary(night)
       : '<p>Whole-night averages unavailable. Earlier hours are missing.</p>'
-    this.root.querySelector('#optimal-window-callout').innerHTML = renderBestWindow(night, timeZone)
+    this.root.querySelector('#optimal-window-callout').innerHTML = renderBestWindow(night, timeZone, now)
 
     if (this.chartNightDate !== night.date) this.selectedForecastHour = null
     this.chartNightDate = night.date
@@ -1074,33 +1103,36 @@ function formatMoonRange(night, timeZone) {
 }
 
 function formatMilkyWayRange(night, timeZone) {
-  const visibleAtStart = night.hours[0]?.mwVisible
-  if (!night.mwRise && !night.mwSet) {
-    return visibleAtStart ? 'Milky Way: Visible all night' : 'Milky Way: Not visible tonight'
+  if (night.mwWindows?.length) {
+    const windows = night.mwWindows.map(({ start, end }) =>
+      `${formatTime(start, timeZone)}–${formatTime(end, timeZone)}`)
+    return `${windows.join(' / ')} · above 10° during astronomical darkness`
   }
-  const parts = []
-  if (night.mwRise) parts.push(`rises ${formatTime(night.mwRise, timeZone)}`)
-  if (night.mwSet) parts.push(`sets ${formatTime(night.mwSet, timeZone)}`)
-  return `Milky Way: ${parts.join(' / ')}`
+  if (night.mwSet && night.astroStart && night.mwSet <= night.astroStart) {
+    return `Below 10° by ${formatTime(night.mwSet, timeZone)}, before astronomical darkness`
+  }
+  return 'No dark window with the core above 10°'
 }
 
-function renderBestWindow(night, timeZone) {
-  const title = '<h3>Best observing window</h3>'
+function renderBestWindow(night, timeZone, now) {
+  const title = '<h3>Best Milky Way window</h3>'
   if (night.wholeNightSummaryAvailable === false) {
     return `${title}<p>Whole-night window unavailable</p>`
   }
-  const window = night.optimalWindow
-  if (!window) return `${title}<p>No scored darkness window</p>`
-  const segments = bestWindowSegments(night)
+  if (!night.mwWindows?.length) return `${title}<p>No usable Milky Way core window during astronomical darkness</p>`
+  const window = night.milkyWayWindow
+  if (!window) return `${title}<p>Weather data unavailable for the Milky Way window</p>`
+  if (window.endTime <= now) return `${title}<p>The Milky Way window has ended for this night</p>`
+  const segments = bestWindowSegments(night, window)
   const start = formatTime(window.startHour, timeZone)
-  const end = formatTime(window.endHour, timeZone)
+  const end = formatTime(window.endTime, timeZone)
   return `
     <div class="dashboard-heading">${title}<strong>${start === end ? start : `${start}–${end}`}</strong></div>
     <div class="window-track" aria-hidden="true">${segments.map(({ left, width }) =>
       `<span style="--slot-start:${left}%;--slot-size:${width}%"></span>`,
     ).join('')}</div>
     <div class="window-axis" aria-hidden="true"><span>${formatTime(night.displayStart, timeZone)}</span><span>${formatTime(night.displayEnd, timeZone)}</span></div>
-    <p>${window.blockSize} scored hour${window.blockSize === 1 ? '' : 's'} · Avg score ${Math.round(window.avg)}/100</p>`
+    <p>Core above 10° during astronomical darkness · Avg score ${Math.round(window.avg)}/100</p>`
 }
 
 function scoreToVerdict(score) {
