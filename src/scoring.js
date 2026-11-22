@@ -200,9 +200,12 @@ export function findOptimalWindow(hours) {
     let best = null
     for (let i = 0; i <= scoredHours.length - blockSize; i++) {
       const block = scoredHours.slice(i, i + blockSize)
+      if (block.some((hour, index) => index > 0 &&
+          +hour.time !== +(block[index - 1].endTime ?? (+block[index - 1].time + 3600_000)))) continue
       const avg = block.reduce((s, h) => s + h.score, 0) / blockSize
       if (!best || avg > best.avg) {
         best = { startHour: block[0].time, endHour: block[block.length - 1].time, avg, blockSize }
+        if (block.at(-1).endTime) best.endTime = block.at(-1).endTime
       }
     }
     if (best) return best

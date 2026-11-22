@@ -52,17 +52,19 @@ export function nextDashboardBoundary(nights, now, timeZone) {
   return Math.min(midnight, ...times.filter((time) => time > now))
 }
 
-export function bestWindowSegments(night) {
-  if (!night.optimalWindow || night.wholeNightSummaryAvailable === false) return []
-  const { startHour, endHour } = night.optimalWindow
+export function bestWindowSegments(night, window = night.optimalWindow) {
+  if (!window || night.wholeNightSummaryAvailable === false) return []
+  const { startHour, endHour, endTime } = window
   const duration = night.displayEnd - night.displayStart
   if (!(duration > 0)) return []
 
   // Each highlight corresponds to an actual scored sample. Gaps stay empty.
   return night.hours
-    .filter(({ time, score }) => score != null && time >= startHour && time <= endHour)
+    .filter(({ time, score, cloud }) => (score != null || endTime && cloud != null) &&
+      +time + HOUR_MS > +startHour && time < (endTime ?? +endHour + HOUR_MS))
     .map(({ time }) => ({
-      left: (time - night.displayStart) / duration * 100,
-      width: Math.min(HOUR_MS, night.displayEnd - time) / duration * 100,
+      left: (Math.max(+time, +startHour) - night.displayStart) / duration * 100,
+      width: (Math.min(+time + HOUR_MS, +(endTime ?? +endHour + HOUR_MS), +night.displayEnd) -
+        Math.max(+time, +startHour)) / duration * 100,
     }))
 }

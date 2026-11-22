@@ -30,7 +30,7 @@ export function renderCloudChart(container, night, nightIndex, timeZone, onSelec
         <span id="tonight-selected-time"></span>
       </header>
       <div class="tonight-readout">
-        <div><strong id="tonight-selected-cloud"></strong><span>Cloud cover</span></div>
+        <div><strong id="tonight-selected-cloud"></strong><span>Cloud forecast</span></div>
         <div><strong id="tonight-selected-temp"></strong><span>Temperature</span></div>
       </div>
       ${renderPlot(hours, hourlyTimes, astroStart, astroEnd)}

@@ -3,7 +3,26 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { scoreHour } from '../src/scoring.js'
+import { scoreHour, findOptimalWindow } from '../src/scoring.js'
+
+test('best windows never bridge missing weather hours or gaps in core visibility', () => {
+  const hour = 3600_000
+  const time = new Date('2026-10-22T10:00:00Z')
+  const result = findOptimalWindow([
+    { time, score: 100 },
+    { time: new Date(+time + hour), score: null },
+    { time: new Date(+time + 2 * hour), score: 90 },
+    { time: new Date(+time + 3 * hour), score: 80 },
+  ])
+  assert.equal(result.blockSize, 2)
+  assert.equal(+result.startHour, +time + 2 * hour)
+  const partial = findOptimalWindow([
+    { time, endTime: new Date(+time + hour / 2), score: 100 },
+    { time: new Date(+time + hour), endTime: new Date(+time + 2 * hour), score: 90 },
+  ])
+  assert.equal(partial.blockSize, 1)
+  assert.equal(+partial.endTime, +time + hour / 2)
+})
 
 const IDEAL = { humidity: 40, temp: 10, dewpoint: 0, windspeed: 5 }
 const NO_MOON = { moonIllum: 0, moonAlt: -20 }

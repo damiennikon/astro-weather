@@ -10,6 +10,39 @@ import { buildFixture, okResponse } from './helpers/openMeteoFixture.mjs'
 const BRISBANE = 'Australia/Brisbane'
 const instant = (value) => new Date(value)
 
+test('Loganholme in November has no Milky Way core window after darkness begins', async () => {
+  const fixture = buildFixture({ timeZone: BRISBANE, startYmd: { year: 2026, month: 11, day: 22 } })
+  const { nights } = await buildForecast(-27.67, 153.19, BRISBANE, {
+    now: instant('2026-11-22T10:00:00Z'), maxNights: 1, fetchImpl: async () => okResponse(fixture),
+  })
+  const night = nights[0]
+  assert.equal(night.mwRise, null, 'being above the threshold at display start is not a rise')
+  assert.ok(night.mwSet < night.astroStart)
+  assert.ok(night.mwSet > instant('2026-11-22T09:40:00Z'))
+  assert.ok(night.mwSet < instant('2026-11-22T09:50:00Z'))
+  assert.deepEqual(night.mwWindows, [])
+  assert.equal(night.milkyWayWindow, null)
+  assert.ok(night.optimalWindow, 'the general weather score still has its own best hours')
+  assert.equal(night.hours.find(({ time }) => +time === +instant('2026-11-22T15:00:00Z')).mwVisible, false)
+})
+
+test('Milky Way recommendations clip hourly samples to actual darkness and core visibility', async () => {
+  const fixture = buildFixture({ timeZone: BRISBANE, startYmd: { year: 2026, month: 10, day: 22 } })
+  const { nights } = await buildForecast(-27.67, 153.19, BRISBANE, {
+    now: instant('2026-10-22T01:00:00Z'), maxNights: 1, fetchImpl: async () => okResponse(fixture),
+  })
+  const night = nights[0]
+  const window = night.milkyWayWindow
+  assert.equal(+window.startHour, +night.astroStart, 'include the first partial hour of darkness')
+  assert.equal(+window.endTime, +night.mwSet, 'finish at the threshold crossing')
+  assert.ok(window.endTime < night.astroEnd)
+  const segments = bestWindowSegments(night, window)
+  const duration = night.displayEnd - night.displayStart
+  assert.ok(Math.abs(segments[0].left - (window.startHour - night.displayStart) / duration * 100) < 1e-8)
+  assert.ok(Math.abs(segments.reduce((total, { width }) => total + width, 0) -
+    (window.endTime - window.startHour) / duration * 100) < 1e-8)
+})
+
 test('cold midnight load adds an opt-in display night from the same three fetches', async () => {
   const body = buildFixture({ timeZone: BRISBANE, startYmd: { year: 2026, month: 8, day: 19 } })
   let calls = 0
